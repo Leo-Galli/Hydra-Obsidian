@@ -1,12 +1,12 @@
 <p align="center">
 
 ```text
-██╗  ██╗██╗   ██╗██████╗ ██████╗  █████╗
-██║  ██║╚██╗ ██╔╝██╔══██╗██╔══██╗██╔══██╗
-███████║ ╚████╔╝ ██║  ██║██████╔╝███████║
-██╔══██║  ╚██╔╝  ██║  ██║██╔══██╗██╔══██║
-██║  ██║   ██║   ██████╔╝██║  ██║██║  ██║
-╚═╝  ╚═╝   ╚═╝   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
+                    ██╗  ██╗██╗   ██╗██████╗ ██████╗  █████╗
+                    ██║  ██║╚██╗ ██╔╝██╔══██╗██╔══██╗██╔══██╗
+                    ███████║ ╚████╔╝ ██║  ██║██████╔╝███████║
+                    ██╔══██║  ╚██╔╝  ██║  ██║██╔══██╗██╔══██║
+                    ██║  ██║   ██║   ██████╔╝██║  ██║██║  ██║
+                    ╚═╝  ╚═╝   ╚═╝   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
 ````
 
 </p>
@@ -46,7 +46,7 @@
 ## 🖥️ Obsidian HUD — Live Control Interface
 
 <p align="center">
-  <img src="https://i.imgur.com/ovsrTe2.png" width="92%">
+  <img src="https://i.imgur.com/ovsrTe2.png" width="92%" style="border-radius:10px; box-shadow:0 0 20px rgba(0,255,200,0.2);">
 </p>
 
 <p align="center">
@@ -62,11 +62,21 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.11+-1f6feb?style=for-the-badge&logo=python&logoColor=white">
-  <img src="https://img.shields.io/badge/ZeroMQ-Async-8250df?style=for-the-badge">
-  <img src="https://img.shields.io/badge/Streamlit-HUD-ff4b4b?style=for-the-badge&logo=streamlit&logoColor=white">
-  <img src="https://img.shields.io/badge/HMAC--SHA256-Secure-238636?style=for-the-badge">
-  <img src="https://img.shields.io/badge/Telemetry-RealTime-0ea5e9?style=for-the-badge">
+  <a href="https://python.org">
+    <img src="https://img.shields.io/badge/Python-3.11%2B-1f6feb?style=for-the-badge&logo=python&logoColor=white">
+  </a>
+  <a href="https://zeromq.org">
+    <img src="https://img.shields.io/badge/ZeroMQ-Async-8250df?style=for-the-badge">
+  </a>
+  <a href="https://streamlit.io">
+    <img src="https://img.shields.io/badge/Streamlit-HUD-ff4b4b?style=for-the-badge&logo=streamlit&logoColor=white">
+  </a>
+  <a href="https://en.wikipedia.org/wiki/HMAC">
+    <img src="https://img.shields.io/badge/HMAC--SHA256-Secure-238636?style=for-the-badge">
+  </a>
+  <a href="https://en.wikipedia.org/wiki/Telemetry">
+    <img src="https://img.shields.io/badge/Telemetry-RealTime-0ea5e9?style=for-the-badge">
+  </a>
 </p>
 
 ---
@@ -162,6 +172,7 @@ git push origin feature/your-feature
 ---
 
 <p align="center">
-  <b>© Leonardo Galli · 2026</b><br>
-  <sub>HYDRA OBSIDIAN · HIGH-PERFORMANCE DISTRIBUTED COMPUTE</sub>
+  <b>HYDRA OBSIDIAN</b><br>
+  <sub>High-Performance Distributed Compute Engine</sub><br><br>
+  <sub>© Leonardo Galli · 2026</sub>
 </p>
