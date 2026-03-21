@@ -1,264 +1,239 @@
-"""
-                                                
-     ██╗  ██╗██╗   ██╗██████╗ ██████╗  █████╗ 
-     ██║  ██║╚██╗ ██╔╝██╔══██╗██╔══██╗██╔══██╗
-     ███████║ ╚████╔╝ ██║  ██║██████╔╝███████║
-     ██╔══██║  ╚██╔╝  ██║  ██║██╔══██╗██╔══██║
-     ██║  ██║   ██║   ██████╔╝██║  ██║██║  ██║
-     ╚═╝  ╚═╝   ╚═╝   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
-
-HYDRA APEX - DYNAMIC LOAD BALANCING & SYSTEM ABSTRACTION
-[MODULE]: KERNEL_V120_STABLE
-[SECURITY]: CLUSTER_KEY_ENFORCED
-"""
-
 import os
 import sys
 import time
 import json
 import uuid
 import socket
-import logging
-import asyncio
 import threading
 import hashlib
-from datetime import datetime
-from typing import Dict, List, Any
-
-import zmq
-import zmq.asyncio
+import hmac
+import sqlite3
+import logging
 import psutil
 import pandas as pd
 import numpy as np
 import streamlit as st
 import plotly.graph_objects as go
-from dotenv import load_dotenv
+import zmq
+from datetime import datetime
+from collections import deque
 
-# --- INITIALIZATION ---
-load_dotenv()
-PORT = int(os.getenv("HYDRA_BROKER_PORT", 5555))
-CLUSTER_KEY = os.getenv("HYDRA_CLUSTER_SECRET", "HYDRA_VOID_ALPHA_2026")
-CPU_THRESHOLD = 75.0  # Threshold to stop sending tasks (Gaming Mode)
+SECRET_KEY = b"HYDRA_OBSIDIAN_V5_2026"
+PORT = 5555
+MAX_LOGS = 50
+AUTO_DISTRIBUTE_MS = 2000
 
-# =============================================================================
-# NETWORK & TELEMETRY KERNEL
-# =============================================================================
+logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
+logger = logging.getLogger("HYDRA")
 
-class SystemKernel:
-    @staticmethod
-    def get_ip():
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            s.connect(('8.8.8.8', 1))
-            return s.getsockname()[0]
-        except: return '127.0.0.1'
-        finally: s.close()
-
-    @staticmethod
-    def fetch_telemetry():
-        vm = psutil.virtual_memory()
-        cpu_load = psutil.cpu_percent(interval=None)
-        # Check if the system is "Busy" (Gaming/Rendering)
-        status = "IDLE" if cpu_load < 15 else "ACTIVE"
-        if cpu_load > CPU_THRESHOLD: status = "CRITICAL_LOAD"
-        
-        return {
-            "cpu": cpu_load,
-            "ram_p": vm.percent,
-            "ram_a": vm.available // (1024 * 1024),
-            "status": status,
-            "uptime": int(time.time() - psutil.boot_time())
-        }
-
-# =============================================================================
-# MASTER ORCHESTRATOR
-# =============================================================================
-
-class HydraMaster:
+class ObsidianMaster:
     def __init__(self):
-        self.ctx = zmq.asyncio.Context()
-        self.router = self.ctx.socket(zmq.ROUTER)
-        self.router.setsockopt(zmq.LINGER, 0)
-        try:
-            self.router.bind(f"tcp://*:{PORT}")
-        except zmq.error.ZMQError:
-            pass
-        
-        self.nodes = {}
-        self.history = []
-        self.start_ts = datetime.now()
-        self.active = False
-
-    async def run_kernel(self):
-        if self.active: return
-        self.active = True
-        while True:
-            try:
-                frames = await self.router.recv_multipart()
-                nid = frames[0].decode()
-                data = json.loads(frames[2].decode())
-                
-                if data.get("secret") != CLUSTER_KEY: continue
-                
-                if data["type"] == "PULSE":
-                    self.nodes[nid] = {
-                        "alias": data["alias"],
-                        "ip": data["ip"],
-                        "telemetry": data["telemetry"],
-                        "ts": datetime.now()
-                    }
-                elif data["type"] == "DATA_RETURN":
-                    self.history.append({
-                        "job": data["job_id"], "node": data["alias"],
-                        "ms": f"{data['elapsed']*1000:.1f}ms", "ts": datetime.now().strftime("%H:%M:%S")
-                    })
-            except: await asyncio.sleep(0.01)
-
-# =============================================================================
-# WORKER PROCESS
-# =============================================================================
-
-class HydraWorker:
-    def __init__(self, master_ip: str):
-        self.master_ip = master_ip
         self.ctx = zmq.Context()
-        self.dealer = self.ctx.socket(zmq.DEALER)
-        self.id = f"NODE-{socket.gethostname().upper()}-{uuid.uuid4().hex[:4].upper()}"
-        self.dealer.setsockopt_string(zmq.IDENTITY, self.id)
-        self.dealer.connect(f"tcp://{self.master_ip}:{PORT}")
-
-    def boot(self):
-        threading.Thread(target=self.pulse, daemon=True).start()
-        while True:
-            try:
-                _, raw = self.dealer.recv_multipart()
-                job = json.loads(raw.decode())
-                if job["op"] == "TASK":
-                    self.execute(job)
-            except: break
-
-    def pulse(self):
-        while True:
-            try:
-                payload = {
-                    "type": "PULSE", "alias": self.id,
-                    "ip": SystemKernel.get_ip(),
-                    "telemetry": SystemKernel.fetch_telemetry(),
-                    "secret": CLUSTER_KEY
-                }
-                self.dealer.send_string("", zmq.SNDMORE)
-                self.dealer.send_json(payload)
-                time.sleep(2.5)
-            except: break
-
-    def execute(self, job):
-        t0 = time.time()
-        # Simulated workload (e.g., Cryptographic verification)
-        _ = [hashlib.sha256(str(i).encode()).hexdigest() for i in range(1200000)]
+        self.socket = self.ctx.socket(zmq.ROUTER)
+        self.socket.setsockopt(zmq.RCVHWM, 1000)
+        self.socket.bind(f"tcp://*:{PORT}")
         
-        result = {
-            "type": "DATA_RETURN", "job_id": job["id"], "alias": self.id,
-            "elapsed": time.time() - t0, "secret": CLUSTER_KEY
-        }
-        self.dealer.send_string("", zmq.SNDMORE)
-        self.dealer.send_json(result)
+        self.nodes = {} 
+        self.event_stream = deque(maxlen=MAX_LOGS)
+        self.is_active = True
+        self.lock = threading.Lock()
+        self.metrics = {"tasks_ok": 0, "avg_lat": 0.0}
 
-# =============================================================================
-# APEX DASHBOARD (NO EMOJI - INDUSTRIAL DESIGN)
-# =============================================================================
+    def start_services(self):
+        threading.Thread(target=self._network_engine, daemon=True).start()
+        threading.Thread(target=self._auto_orchestrator, daemon=True).start()
+        threading.Thread(target=self._cleanup_zombies, daemon=True).start()
+        logger.info(f"OBSIDIAN MASTER READY ON PORT {PORT}")
 
-def mission_control(master):
-    st.set_page_config(page_title="HYDRA APEX", layout="wide")
+    def _network_engine(self):
+        while self.is_active:
+            if self.socket.poll(100):
+                try:
+                    parts = self.socket.recv_multipart()
+                    if len(parts) < 4: continue
+                    addr, _, payload, sig = parts[0], parts[1], parts[2], parts[3].decode()
+                    
+                    if hmac.new(SECRET_KEY, payload, hashlib.sha256).hexdigest() == sig:
+                        data = json.loads(payload.decode())
+                        self._process_incoming(addr, data)
+                except Exception: pass
+
+    def _process_incoming(self, addr, data):
+        nid = data['id']
+        with self.lock:
+            if data['t'] == 'HEARTBEAT':
+                self.nodes[nid] = {
+                    'addr': addr, 'stats': data['s'], 'history': data['h'],
+                    'last_seen': time.time(), 'health': 100 - data['s']['cpu']
+                }
+            elif data['t'] == 'ACK':
+                self.metrics["tasks_ok"] += 1
+                self.event_stream.appendleft({
+                    'time': datetime.now().strftime("%H:%M:%S"),
+                    'node': nid, 'job': data['jid'], 'status': 'COMPLETED', 'lat': f"{data['el']:.2f}s"
+                })
+
+    def _auto_orchestrator(self):
+        while self.is_active:
+            time.sleep(AUTO_DISTRIBUTE_MS / 1000)
+            with self.lock:
+                ready_nodes = [n for n, d in self.nodes.items() if d['health'] > 40]
+            
+            for node_id in ready_nodes:
+                self._send_task(node_id)
+
+    def _send_task(self, node_id):
+        jid = f"Z-{uuid.uuid4().hex[:4].upper()}"
+        payload = {'t': 'TASK', 'jid': jid}
+        msg = json.dumps(payload).encode()
+        sig = hmac.new(SECRET_KEY, msg, hashlib.sha256).hexdigest()
+        with self.lock:
+            if node_id in self.nodes:
+                self.socket.send_multipart([self.nodes[node_id]['addr'], b"", msg, sig.encode()])
+
+    def _cleanup_zombies(self):
+        while self.is_active:
+            now = time.time()
+            with self.lock:
+                dead = [n for n, d in self.nodes.items() if now - d['last_seen'] > 10]
+                for n in dead: del self.nodes[n]
+            time.sleep(5)
+
+class ObsidianWorker:
+    def __init__(self, master_ip):
+        self.id = f"HYDRA-{socket.gethostname()}-{uuid.uuid4().hex[:3]}".upper()
+        self.ctx = zmq.Context()
+        self.sock = self.ctx.socket(zmq.DEALER)
+        self.sock.setsockopt_string(zmq.IDENTITY, self.id)
+        self.sock.connect(f"tcp://{master_ip}:{PORT}")
+        self.history = deque([0]*25, maxlen=25)
+
+    def run(self):
+        threading.Thread(target=self._heartbeat, daemon=True).start()
+        logger.info(f"WORKER {self.id} ONLINE")
+        while True:
+            parts = self.sock.recv_multipart()
+            payload, sig = parts[1], parts[2].decode()
+            if hmac.new(SECRET_KEY, payload, hashlib.sha256).hexdigest() == sig:
+                req = json.loads(payload.decode())
+                self._execute_payload(req)
+
+    def _execute_payload(self, req):
+        t0 = time.time()
+        for _ in range(100000): hashlib.sha256(b"work").hexdigest()
+        
+        ans = {'t': 'ACK', 'id': self.id, 'jid': req['jid'], 'el': time.time()-t0}
+        msg = json.dumps(ans).encode()
+        sig = hmac.new(SECRET_KEY, msg, hashlib.sha256).hexdigest()
+        self.sock.send_multipart([b"", msg, sig.encode()])
+
+    def _heartbeat(self):
+        while True:
+            cpu = psutil.cpu_percent()
+            self.history.append(cpu)
+            data = {'t': 'HEARTBEAT', 'id': self.id, 's': {'cpu': cpu, 'ram': psutil.virtual_memory().percent}, 'h': list(self.history)}
+            msg = json.dumps(data).encode()
+            sig = hmac.new(SECRET_KEY, msg, hashlib.sha256).hexdigest()
+            try: self.sock.send_multipart([b"", msg, sig.encode()])
+            except: pass
+            time.sleep(2.5)
+
+def draw_dashboard(master):
+    st.set_page_config(page_title="HYDRA OBSIDIAN", layout="wide", initial_sidebar_state="collapsed")
     
     st.markdown("""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;700&display=swap');
-        .stApp { background-color: #050505; color: #00ffcc; font-family: 'JetBrains Mono', monospace; }
-        [data-testid="stHeader"], footer { visibility: hidden; }
-        .stMetric { border: 1px solid #00ffcc33; padding: 15px; border-radius: 0px; background: #0a0a0a; }
-        .stButton>button { 
-            border: 1px solid #00ffcc; background: transparent; color: #00ffcc; 
-            border-radius: 0px; width: 100%; letter-spacing: 2px;
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&family=Fira+Code:wght@400;500&display=swap');
+        
+        html, body, [class*="css"] { 
+            background-color: #0d0d0d; 
+            color: #e0e0e0; 
+            font-family: 'Inter', sans-serif;
         }
-        .stButton>button:hover { background: #00ffcc; color: #000; }
+        
+        .metric-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+        }
+        
+        .node-container {
+            background: linear-gradient(145deg, #161616, #0f0f0f);
+            border: 1px solid #222;
+            padding: 20px;
+            border-radius: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .node-container:hover { border-color: #00ff88; box-shadow: 0 0 15px rgba(0, 255, 136, 0.1); }
+        
+        .status-online { color: #00ff88; font-weight: bold; font-size: 12px; }
+        .stTable { background: transparent !important; }
+        
+        code { font-family: 'Fira Code', monospace !important; color: #00ff88 !important; }
         </style>
     """, unsafe_allow_html=True)
 
-    st.title("HYDRA APEX | CENTRAL UNIT")
-    st.caption(f"NET_ADDR: {SystemKernel.get_ip()} | PORT_ACTIVE: {PORT}")
+    c1, c2 = st.columns([4, 1])
+    with c1:
+        st.markdown("<h1 style='margin:0; letter-spacing:-2px;'>HYDRA <span style='color:#00ff88'>OBSIDIAN</span></h1>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#666;'>Industrial Distributed Computing Core // Autonomous Mode v5.0</p>", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"<div class='metric-card'><small>SYSTEM CLOCK</small><br><b style='color:#00ff88'>{datetime.now().strftime('%H:%M:%S')}</b></div>", unsafe_allow_html=True)
 
-    # Node Filtering (Gaming Aware)
-    online_nodes = {k: v for k, v in master.nodes.items() if (datetime.now() - v["ts"]).seconds < 10}
-    ready_nodes = {k: v for k, v in online_nodes.items() if v["telemetry"]["cpu"] < CPU_THRESHOLD}
-    
+    st.write("---")
+
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("NODES_ATTACHED", len(online_nodes))
-    m2.metric("NODES_READY", len(ready_nodes))
-    m3.metric("JOBS_PROCESSED", len(master.history))
-    m4.metric("SYSTEM_INTEGRITY", "STABLE")
+    m1.metric("NODES ACTIVE", len(master.nodes))
+    m2.metric("JOBS COMPLETED", master.metrics["tasks_ok"])
+    avg_load = np.mean([n['stats']['cpu'] for n in master.nodes.values()]) if master.nodes else 0
+    m2.metric("CLUSTER LOAD", f"{avg_load:.1f}%")
+    m4.metric("ENGINE STATE", "STABLE", delta="SECURE")
 
-    st.markdown("---")
-
-    if online_nodes:
-        c_left, c_right = st.columns([2, 1])
-        
-        with c_left:
-            st.subheader("CLUSTER_REGISTRY")
-            df_data = []
-            for k, v in online_nodes.items():
-                df_data.append({
-                    "NODE_ID": v["alias"], 
-                    "CPU_LOAD": f"{v['telemetry']['cpu']}%", 
-                    "RAM_VAL": f"{v['telemetry']['ram_p']}%",
-                    "STATUS": v["telemetry"]["status"]
-                })
-            st.dataframe(pd.DataFrame(df_data), use_container_width=True, hide_index=True)
-            
-            # Load Graph
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(y=[float(d["CPU_LOAD"].strip('%')) for d in df_data], 
-                                     x=[d["NODE_ID"] for d in df_data], mode='lines+markers',
-                                     line=dict(color='#00ffcc')))
-            fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', 
-                              plot_bgcolor='rgba(0,0,0,0)', height=300, margin=dict(l=0,r=0,t=20,b=0))
-            st.plotly_chart(fig, use_container_width=True)
-
-        with c_right:
-            st.subheader("COMMAND_CENTER")
-            if st.button("RUN_DISTRIBUTED_COMPUTE"):
-                if not ready_nodes:
-                    st.error("NO NODES BELOW LOAD THRESHOLD")
-                else:
-                    for nid in ready_nodes:
-                        master.router.send_multipart([nid.encode(), b"", json.dumps({"op": "TASK", "id": uuid.uuid4().hex[:6]}).encode()])
-                    st.success(f"TASK_SENT_TO_{len(ready_nodes)}_NODES")
-
-            st.subheader("LOG_STREAM")
-            st.table(pd.DataFrame(master.history).tail(10))
+    st.markdown("###  NETWORK NODES")
+    if not master.nodes:
+        st.info("Searching for active mesh nodes...")
     else:
-        st.warning("AWAITING_NODE_HANDSHAKE...")
+        node_items = list(master.nodes.items())
+        for i in range(0, len(node_items), 3):
+            cols = st.columns(3)
+            for j in range(3):
+                if i + j < len(node_items):
+                    nid, data = node_items[i+j]
+                    with cols[j]:
+                        st.markdown(f"""
+                        <div class="node-container">
+                            <span class="status-online">● ACTIVE</span>
+                            <h4 style="margin: 5px 0;">{nid}</h4>
+                            <p style="font-size:13px; color:#888;">CPU: {data['stats']['cpu']}% | RAM: {data['stats']['ram']}%</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        fig = go.Figure(go.Scatter(y=data['history'], fill='tozeroy', line=dict(color='#00ff88', width=2)))
+                        fig.update_layout(height=80, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False, yaxis_visible=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                        st.plotly_chart(fig, use_container_width=True, key=f"g_{nid}")
 
+    st.markdown("###  LIVE EVENT STREAM")
+    if master.event_stream:
+        df = pd.DataFrame(list(master.event_stream))
+        st.dataframe(df, use_container_width=True, height=250)
+    
     time.sleep(2)
     st.rerun()
 
-# =============================================================================
-# BOOT
-# =============================================================================
-
 if __name__ == "__main__":
-    if len(sys.argv) < 2: sys.exit(1)
+    if len(sys.argv) < 2:
+        print("Usage: streamlit run main.py -- master | python main.py worker [ip]")
+        sys.exit()
+
     mode = sys.argv[1].lower()
-
     if mode == "master":
-        if 'kernel' not in st.session_state:
-            st.session_state.kernel = HydraMaster()
-            def start_async(m):
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(m.run_kernel())
-            threading.Thread(target=start_async, args=(st.session_state.kernel,), daemon=True).start()
-        mission_control(st.session_state.kernel)
-
-    elif mode == "worker":
-        ip = sys.argv[2] if len(sys.argv) > 2 else "127.0.0.1"
-        HydraWorker(ip).boot()
+        if 'engine' not in st.session_state:
+            st.session_state.engine = ObsidianMaster()
+            st.session_state.engine.start_services()
+        draw_dashboard(st.session_state.engine)
+    else:
+        target = sys.argv[2] if len(sys.argv) > 2 else "127.0.0.1"
+        ObsidianWorker(target).run()
