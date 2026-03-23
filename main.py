@@ -17,330 +17,334 @@ import subprocess
 from datetime import datetime
 from collections import deque
 
-# --- CONFIGURAZIONE PROGETTO ---
-PROJECT_NAME = "HYDRA_NEXUS_V18"
-SSID_NAME = "HYDRA_NEXUS_AP"
-AP_PASSWORD = "obsidian_secure_2026"
-SECRET_KEY = b"HYDRA_GHOST_2026_KEY"
+# --- CONFIGURAZIONE ELITE V19 ---
+PROJ_ID = "HYDRA_OVERLORD_V19"
 TCP_PORT = 5555
 UDP_PORT = 5556
-MAX_LOGS = 100
+SECRET_KEY = b"HYDRA_V19_ULTRA_SECRET"
+MAX_LOGS = 150
 
-# --- UTILS SISTEMA (WIFI & NETWORK) ---
-class NexusNetwork:
-    @staticmethod
-    def create_ap():
-        """Tenta di creare l'Access Point del Progetto."""
-        try:
-            # Configura l'Hosted Network di Windows
-            subprocess.run(f'netsh wlan set hostednetwork mode=allow ssid={SSID_NAME} key={AP_PASSWORD}', shell=True, capture_output=True)
-            res = subprocess.run('netsh wlan start hostednetwork', shell=True, capture_output=True)
-            if res.returncode == 0:
-                return True, f"Wireless '{SSID_NAME}' creato con successo."
-            else:
-                return False, "Hardware AP non supportato. Usa l'Hotspot Mobile di Windows manualmente."
-        except Exception as e:
-            return False, str(e)
-
-    @staticmethod
-    def get_active_ips():
-        ips = []
-        for interface, addrs in psutil.net_if_addrs().items():
-            for addr in addrs:
-                if addr.family == socket.AF_INET and not addr.address.startswith("127."):
-                    ips.append({"int": interface, "ip": addr.address})
-        return ips
-
-# --- STILI CSS ---
-def apply_styles():
-    st.set_page_config(page_title=PROJECT_NAME, layout="wide")
+# --- STILI CSS "DEEP OBSIDIAN" ---
+def apply_elite_styles():
+    st.set_page_config(page_title=PROJ_ID, layout="wide", initial_sidebar_state="expanded")
     st.markdown("""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Inter:wght@300;400;900&display=swap');
         
-        :root { --glow: #00ff88; --dark: #080808; }
+        :root { --neon: #00ff88; --bg: #030303; --card: #0a0a0a; }
         
         html, body, [class*="css"] { 
-            background-color: var(--dark); 
-            color: #d1d1d1; 
+            background-color: var(--bg); 
+            color: #ffffff; 
             font-family: 'Inter', sans-serif;
         }
         
-        .stMetric { background: #111; border: 1px solid #222; border-radius: 12px; }
-        
-        .header-box {
-            padding: 30px;
-            background: linear-gradient(90deg, #111 0%, #050505 100%);
-            border-bottom: 2px solid var(--glow);
-            margin-bottom: 30px;
+        .stMetric { 
+            background: var(--card); 
+            border: 1px solid #1a1a1a; 
+            border-radius: 10px; 
+            padding: 20px !important;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
         
-        .project-title {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 3.5rem;
-            color: var(--glow);
-            text-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
-            margin: 0;
+        .main-title {
+            font-size: 4.5rem;
+            font-weight: 900;
+            letter-spacing: -5px;
+            background: linear-gradient(180deg, #fff 0%, #444 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0;
         }
 
-        .node-card {
-            background: #111;
+        .console-box {
+            background: #000;
             border: 1px solid #222;
-            padding: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            color: var(--neon);
+            height: 200px;
+            overflow-y: scroll;
+            margin-bottom: 20px;
+        }
+
+        .node-card-active {
+            background: linear-gradient(145deg, #0d0d0d, #050505);
+            border-left: 5px solid var(--neon);
+            padding: 25px;
             border-radius: 15px;
-            border-top: 4px solid var(--glow);
-            margin-bottom: 15px;
+            margin-bottom: 20px;
+            border-right: 1px solid #1a1a1a;
+            border-top: 1px solid #1a1a1a;
+            border-bottom: 1px solid #1a1a1a;
         }
-        
-        .status-dot {
-            height: 12px; width: 12px; background-color: var(--glow);
+
+        .status-pulse {
+            height: 12px; width: 12px; background: var(--neon);
             border-radius: 50%; display: inline-block;
-            box-shadow: 0 0 10px var(--glow);
-            margin-right: 10px;
+            box-shadow: 0 0 15px var(--neon);
+            animation: pulse 2s infinite;
         }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
         
         .stButton>button {
-            background: transparent; border: 1px solid var(--glow); color: var(--glow);
-            font-family: 'Orbitron'; border-radius: 5px; transition: 0.3s;
+            width: 100%;
+            background: #111;
+            border: 1px solid var(--neon);
+            color: var(--neon);
+            font-weight: bold;
+            height: 50px;
+            transition: 0.3s;
         }
-        .stButton>button:hover { background: var(--glow); color: black; box-shadow: 0 0 15px var(--glow); }
+        .stButton>button:hover { background: var(--neon); color: #000; box-shadow: 0 0 20px var(--neon); }
         </style>
     """, unsafe_allow_html=True)
 
-# --- CLASSE SERVER (MASTER) ---
-class HydraServer:
+# --- CORE LOGIC: MASTER ---
+class HydraMaster:
     def __init__(self):
+        self.nodes = {}
+        self.raw_logs = deque(maxlen=MAX_LOGS)
+        self.debug_stream = deque(maxlen=20)
+        self.lock = threading.Lock()
         self.ctx = zmq.Context()
         self.socket = self.ctx.socket(zmq.ROUTER)
+        self.socket.setsockopt(zmq.RCVTIMEO, 1000)
         self.socket.bind(f"tcp://0.0.0.0:{TCP_PORT}")
-        self.nodes = {} 
-        self.logs = deque(maxlen=MAX_LOGS)
-        self.lock = threading.Lock()
-        self.running = True
+        self.start_time = time.time()
 
-    def start(self):
-        threading.Thread(target=self._broadcast_presence, daemon=True).start()
-        threading.Thread(target=self._receive_loop, daemon=True).start()
+    def add_debug(self, msg):
+        ts = datetime.now().strftime("%H:%M:%S")
+        self.debug_stream.appendleft(f"[{ts}] {msg}")
 
-    def _broadcast_presence(self):
-        """Invia l'identità del progetto via UDP Broadcast."""
-        udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        while self.running:
-            ips = NexusNetwork.get_active_ips()
-            for entry in ips:
-                try:
-                    # Formato: IDENTIFIER | PROJECT_NAME | IP
-                    payload = f"HYDRA_V18|{PROJECT_NAME}|{entry['ip']}".encode()
-                    udp_sock.sendto(payload, ('<broadcast>', UDP_PORT))
-                except: pass
+    def run_engine(self):
+        # UDP Beacon per farsi trovare dai client
+        threading.Thread(target=self._udp_beacon, daemon=True).start()
+        # Thread ricezione ZMQ
+        threading.Thread(target=self._recv_worker, daemon=True).start()
+
+    def _udp_beacon(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.add_debug("UDP Beacon iniziato sulla porta 5556")
+        while True:
+            try:
+                # Recupera tutti gli IP locali per gridare su ogni rete
+                for interface, addrs in psutil.net_if_addrs().items():
+                    for addr in addrs:
+                        if addr.family == socket.AF_INET and not addr.address.startswith("127."):
+                            msg = f"HYDRA_V19_BEACON|{addr.address}".encode()
+                            sock.sendto(msg, ('<broadcast>', UDP_PORT))
+            except: pass
             time.sleep(2)
 
-    def _receive_loop(self):
-        while self.running:
-            if self.socket.poll(100):
-                try:
-                    parts = self.socket.recv_multipart()
-                    identity, payload, signature = parts[0], parts[2], parts[3].decode()
-                    
-                    if hmac.new(SECRET_KEY, payload, hashlib.sha256).hexdigest() == signature:
-                        data = json.loads(payload.decode())
-                        self._process_data(identity, data)
-                except: pass
+    def _recv_worker(self):
+        self.add_debug(f"ZMQ ROUTER pronto sulla porta {TCP_PORT}")
+        while True:
+            try:
+                parts = self.socket.recv_multipart()
+                if len(parts) < 4: continue
+                
+                identity, _, payload, sig = parts
+                # Validazione HMAC
+                calc_sig = hmac.new(SECRET_KEY, payload, hashlib.sha256).hexdigest().encode()
+                if sig == calc_sig:
+                    data = json.loads(payload.decode())
+                    self._process_node_data(identity, data)
+                else:
+                    self.add_debug(f"Rifiutato pacchetto da {identity.decode()}: Firma non valida")
+            except zmq.Again: pass
+            except Exception as e: self.add_debug(f"Errore Recv: {str(e)}")
 
-    def _process_data(self, identity, data):
+    def _process_node_data(self, identity, data):
         nid = data['id']
         with self.lock:
+            # Se è un nuovo nodo, logga
+            if nid not in self.nodes:
+                self.add_debug(f"NUOVO NODO RILEVATO: {nid}")
+            
             self.nodes[nid] = {
                 'id_zmq': identity,
-                'hostname': data.get('host', 'Generic_Node'),
+                'hostname': data.get('host', 'N/A'),
                 'stats': data['s'],
                 'history': data['h'],
-                'last_seen': time.time()
+                'last': time.time(),
+                'ip': data.get('ip', 'Unknown')
             }
-            if data['t'] == 'DATA':
-                self.logs.appendleft({
-                    "Timestamp": datetime.now().strftime("%H:%M:%S"),
-                    "Node_ID": nid,
-                    "Project": PROJECT_NAME,
-                    "CPU_Usage": f"{data['s']['cpu']}%"
-                })
+            self.raw_logs.appendleft({
+                'Time': datetime.now().strftime("%H:%M:%S"),
+                'Node': nid,
+                'CPU': f"{data['s']['cpu']}%",
+                'RAM': f"{data['s']['ram']}%",
+                'IO_Disk': f"{data['s'].get('disk', 0)}%"
+            })
 
-# --- CLASSE CLIENT (WORKER) ---
-class HydraClient:
+# --- CORE LOGIC: WORKER ---
+class HydraWorker:
     def __init__(self, target_ip):
-        self.id = f"HYDRA-NODE-{uuid.uuid4().hex[:4].upper()}"
+        self.id = f"HYDRA-NODE-{socket.gethostname()}-{uuid.uuid4().hex[:4].upper()}"
         self.master_ip = target_ip
         self.ctx = zmq.Context()
         self.sock = self.ctx.socket(zmq.DEALER)
         self.sock.setsockopt_string(zmq.IDENTITY, self.id)
-        self.history = deque([0]*40, maxlen=40)
-        self.stats = {"cpu": 0, "ram": 0}
-        self.is_connected = False
+        self.history = deque([0]*50, maxlen=50)
+        self.connected = False
 
-    def connect(self):
-        self.sock.connect(f"tcp://{self.master_ip}:{TCP_PORT}")
-        self.is_connected = True
-        threading.Thread(target=self._sync_loop, daemon=True).start()
+    def start_sync(self):
+        try:
+            self.sock.connect(f"tcp://{self.master_ip}:{TCP_PORT}")
+            self.connected = True
+            threading.Thread(target=self._loop, daemon=True).start()
+            return True
+        except: return False
 
-    def _sync_loop(self):
+    def _loop(self):
         while True:
-            self.stats["cpu"] = psutil.cpu_percent()
-            self.stats["ram"] = psutil.virtual_memory().percent
-            self.history.append(self.stats["cpu"])
+            # Telemetria Avanzata
+            stats = {
+                'cpu': psutil.cpu_percent(),
+                'ram': psutil.virtual_memory().percent,
+                'disk': psutil.disk_usage('/').percent,
+                'net_sent': psutil.net_io_counters().bytes_sent
+            }
+            self.history.append(stats['cpu'])
             
-            data = {
-                't': 'DATA',
+            payload = {
                 'id': self.id,
                 'host': socket.gethostname(),
-                's': self.stats,
+                'ip': socket.gethostbyname(socket.gethostname()),
+                's': stats,
                 'h': list(self.history)
             }
-            msg = json.dumps(data).encode()
+            
+            msg = json.dumps(payload).encode()
             sig = hmac.new(SECRET_KEY, msg, hashlib.sha256).hexdigest().encode()
             
             try:
                 self.sock.send_multipart([b"", msg, sig])
-            except:
-                self.is_connected = False
-            time.sleep(1.5)
+            except: self.connected = False
+            time.sleep(1)
 
-# --- INTERFACCIA STREAMLIT ---
+# --- DASHBOARD UI ---
 def main():
-    apply_styles()
+    apply_elite_styles()
     
     if len(sys.argv) < 2:
-        st.error("Specificare 'server' o 'client' all'avvio.")
+        st.error("Lancio: streamlit run file.py [master/worker]")
         return
 
-    mode = sys.argv[1].lower()
+    role = sys.argv[1].lower()
 
-    if mode == "server":
-        if 'server_engine' not in st.session_state:
-            st.session_state.server_engine = HydraServer()
-            st.session_state.server_engine.start()
+    if role == "master":
+        # Inizializzazione Master
+        if 'master_obj' not in st.session_state:
+            st.session_state.master_obj = HydraMaster()
+            st.session_state.master_obj.run_engine()
         
-        srv = st.session_state.server_engine
+        m = st.session_state.master_obj
 
-        # Header Server
-        st.markdown(f"""
-            <div class='header-box'>
-                <h1 class='project-title'>{PROJECT_NAME} // SERVER</h1>
-                <p style='color:#888;'>Broadcast attivo su SSID: <b>{SSID_NAME}</b></p>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"<h1 class='main-title'>HYDRA <span style='color:var(--neon)'>OVERLORD</span></h1>", unsafe_allow_html=True)
+        st.write(f"**SERVER STATUS:** ONLINE | **PORT:** {TCP_PORT} | **ID:** {PROJ_ID}")
+        
+        # Sidebar Control
+        with st.sidebar:
+            st.header("⚡ SYSTEM CONTROL")
+            if st.button("🛰️ CREATE WIFI AP (ADMIN)"):
+                res = subprocess.run(f'netsh wlan set hostednetwork mode=allow ssid=HYDRA_V19 key=obsidian123', shell=True, capture_output=True)
+                subprocess.run('netsh wlan start hostednetwork', shell=True)
+                st.write(res.stdout.decode())
+            st.info("Se non appare nulla, assicurati che il Client abbia l'IP corretto del Master.")
 
-        if st.sidebar.button("🛠️ FORZA CREAZIONE WIRELESS"):
-            ok, msg = NexusNetwork.create_ap()
-            if ok: st.sidebar.success(msg)
-            else: st.sidebar.warning(msg)
+        # Top Bar Metrics
+        c1, c2, c3, c4 = st.columns(4)
+        with m.lock:
+            n_nodes = len(m.nodes)
+            m_logs = len(m.raw_logs)
+            c1.metric("NODES ONLINE", n_nodes)
+            c2.metric("TOTAL PKTS", m_logs)
+            c3.metric("UPTIME", f"{int(time.time() - m.start_time)}s")
+            c4.metric("SECURITY", "HMAC-SHA256")
 
-        # Dashboard Metrics
-        m1, m2, m3 = st.columns(3)
-        m1.metric("NODI IN RETE", len(srv.nodes))
-        m2.metric("TRAFFICO DATI", f"{len(srv.logs)} PKTS")
-        m3.metric("PROJECT STATUS", "ACTIVE")
+        # Live Debug Console
+        st.write("### 🖥️ SYSTEM DEBUG CONSOLE")
+        debug_txt = "\n".join(list(m.debug_stream))
+        st.markdown(f"<div class='console-box'>{debug_txt}</div>", unsafe_allow_html=True)
 
-        # Mappa Nodi
-        st.write("---")
-        st.subheader("🛰️ GHOST MESH TOPOLOGY")
-        if not srv.nodes:
-            st.info("In attesa di connessioni Client... Assicurati che i Client facciano lo 'Scan'.")
+        # Node Monitoring
+        st.write("### 🛰️ CONNECTED NEURAL NODES")
+        if n_nodes == 0:
+            st.warning("NESSUN NODO RILEVATO. In attesa di segnale...")
         else:
-            n_items = list(srv.nodes.items())
-            for i in range(0, len(n_items), 3):
-                cols = st.columns(3)
-                for j in range(3):
-                    if i+j < len(n_items):
-                        nid, d = n_items[i+j]
+            with m.lock:
+                node_list = list(m.nodes.items())
+            for i in range(0, len(node_list), 2):
+                cols = st.columns(2)
+                for j in range(2):
+                    if i+j < len(node_list):
+                        nid, data = node_list[i+j]
                         with cols[j]:
                             st.markdown(f"""
-                                <div class='node-card'>
-                                    <div class='status-dot'></div> <b>{d['hostname']}</b><br>
-                                    <small style='color:#666;'>UID: {nid}</small><br>
-                                    <p style='margin-top:10px; font-family:monospace;'>CPU: {d['stats']['cpu']}% | RAM: {d['stats']['ram']}%</p>
+                                <div class='node-card-active'>
+                                    <div class='status-pulse'></div> <b style='font-size:20px;'>{data['hostname']}</b><br>
+                                    <small style='color:#666;'>UID: {nid} | IP: {data['ip']}</small>
+                                    <div style='margin-top:15px;'>
+                                        <b>CPU: {data['stats']['cpu']}%</b> | 
+                                        RAM: {data['stats']['ram']}% | 
+                                        DISK: {data['stats']['disk']}%
+                                    </div>
                                 </div>
                             """, unsafe_allow_html=True)
-                            fig = go.Figure(go.Scatter(y=d['history'], fill='tozeroy', line=dict(color='#00ff88', width=2)))
-                            fig.update_layout(height=80, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False, yaxis_visible=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                            fig = go.Figure(go.Scatter(y=data['history'], fill='tozeroy', line=dict(color='#00ff88', width=3)))
+                            fig.update_layout(height=120, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                             st.plotly_chart(fig, use_container_width=True, key=nid)
 
-        st.subheader("📜 PROJECT SYNC LOGS")
-        st.dataframe(pd.DataFrame(list(srv.logs)), use_container_width=True)
-        time.sleep(1); st.rerun()
+        st.write("### 📜 DATA STREAM")
+        st.dataframe(pd.DataFrame(list(m.raw_logs)), use_container_width=True)
 
-    elif mode == "client":
-        st.markdown(f"""
-            <div class='header-box'>
-                <h1 class='project-title'>{PROJECT_NAME} // CLIENT</h1>
-                <p style='color:#888;'>Ricerca attiva di Server nel perimetro...</p>
-            </div>
-        """, unsafe_allow_html=True)
-
-        if 'client_engine' not in st.session_state:
-            # Fase di Ricerca (Scan)
-            st.subheader("🔍 RADAR DI SCANSIONE")
+    elif role == "worker":
+        st.markdown(f"<h1 class='main-title'>HYDRA <span style='color:var(--neon)'>WORKER</span></h1>", unsafe_allow_html=True)
+        
+        if 'worker_obj' not in st.session_state:
+            st.subheader("📡 Handshake Iniziale")
             
-            if 'discovered' not in st.session_state:
-                st.session_state.discovered = {}
-
-            if st.button("📡 AVVIA SCANSIONE"):
-                with st.spinner("Ascolto pacchetti GHOST V18..."):
+            # Scansione automatica
+            if st.button("🔍 SCAN RETE PER MASTER"):
+                with st.spinner("Ascolto Beacon..."):
                     scanner = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                     scanner.bind(('', UDP_PORT))
-                    scanner.settimeout(4.0)
-                    end_time = time.time() + 4
-                    while time.time() < end_time:
-                        try:
-                            data, addr = scanner.recvfrom(1024)
-                            raw = data.decode().split("|")
-                            if raw[0] == "HYDRA_V18":
-                                # IP: {PROJ_NAME}
-                                st.session_state.discovered[raw[2]] = raw[1]
-                        except: pass
-                    scanner.close()
+                    scanner.settimeout(5.0)
+                    try:
+                        data, addr = scanner.recvfrom(1024)
+                        if "HYDRA_V19_BEACON" in data.decode():
+                            st.session_state.found_ip = data.decode().split("|")[1]
+                            st.success(f"Master trovato a: {st.session_state.found_ip}")
+                    except: st.error("Nessun Master trovato. Inserisci IP manualmente.")
+                    finally: scanner.close()
 
-            if st.session_state.discovered:
-                st.write("### 🟢 SERVER RILEVATI:")
-                for ip, name in st.session_state.found_masters.items() if hasattr(st.session_state, 'found_masters') else st.session_state.discovered.items():
-                    c_node, c_act = st.columns([3, 1])
-                    c_node.markdown(f"""
-                        <div style='background:#1a1a1a; padding:15px; border-radius:10px; border-left:4px solid #00ff88;'>
-                            <b>PROGETTO: {name}</b><br>
-                            <small>IP IDENTIFICATO: {ip}</small>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    if c_act.button("COLLEGATI", key=ip):
-                        st.session_state.client_engine = HydraClient(ip)
-                        st.session_state.client_engine.connect()
-                        st.rerun()
-            else:
-                st.warning("Nessun server HYDRA rilevato. Connettiti al Wi-Fi 'HYDRA_NEXUS_AP' o usa un cavo USB.")
-                manual = st.text_input("IP Manuale:")
-                if st.button("FORZA LINK"):
-                    st.session_state.client_engine = HydraClient(manual)
-                    st.session_state.client_engine.connect()
+            target = st.text_input("MASTER IP:", st.session_state.get('found_ip', ''))
+            if st.button("🚀 INFILTRATE MESH"):
+                w = HydraWorker(target)
+                if w.start_sync():
+                    st.session_state.worker_obj = w
                     st.rerun()
         else:
-            # Fase Connessa
-            cl = st.session_state.client_engine
-            st.success(f"COLLEGATO AL SERVER: {cl.master_ip}")
+            w = st.session_state.worker_obj
+            st.metric("CONNECTION STATUS", "ESTABLISHED" if w.connected else "LOST")
+            st.write(f"**NODE ID:** `{w.id}`")
+            st.write(f"**MASTER TARGET:** `{w.master_ip}`")
             
-            # Local Stats
-            c1, c2, c3 = st.columns(3)
-            c1.metric("MIO ID", cl.id[:15])
-            c2.metric("CPU CARICO", f"{cl.stats['cpu']}%")
-            c3.metric("RAM CARICO", f"{cl.stats['ram']}%")
-
-            fig = go.Figure(go.Scatter(y=list(cl.history), fill='tozeroy', line=dict(color='#00ff88', width=3)))
-            fig.update_layout(height=300, margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', yaxis=dict(gridcolor='#111'), xaxis=dict(gridcolor='#111'))
+            fig = go.Figure(go.Scatter(y=list(w.history), fill='tozeroy', line=dict(color='#00ff88', width=4)))
+            fig.update_layout(height=400, margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig, use_container_width=True)
-
-            if st.button("🔌 SCOLLEGATI"):
-                del st.session_state.client_engine
+            
+            if st.button("🔌 DISCONNECT"):
+                del st.session_state.worker_obj
                 st.rerun()
-        
-        time.sleep(1); st.rerun()
+
+    time.sleep(1)
+    st.rerun()
 
 if __name__ == "__main__":
     main()
