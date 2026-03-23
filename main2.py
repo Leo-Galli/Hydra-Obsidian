@@ -175,7 +175,7 @@ def draw_main():
         m4.metric("ENGINE", "STABLE", delta="SECURE")
 
         # Node Grid
-        st.markdown("###  NETWORK NODES")
+        st.markdown("### 🛰️ NETWORK NODES")
         if not master.nodes: st.info("Searching for active mesh nodes...")
         else:
             node_items = list(master.nodes.items())
@@ -190,7 +190,7 @@ def draw_main():
                             fig.update_layout(height=80, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False, yaxis_visible=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                             st.plotly_chart(fig, use_container_width=True, key=f"g_{nid}")
 
-        st.markdown("###  GLOBAL EVENT STREAM")
+        st.markdown("### 📜 GLOBAL EVENT STREAM")
         st.dataframe(pd.DataFrame(list(master.event_stream)), use_container_width=True)
 
     elif mode == "worker":
@@ -210,12 +210,12 @@ def draw_main():
         m4.metric("RAM USAGE", f"{worker.metrics['ram']}%")
 
         # Performance Graph
-        st.markdown("###  LOCAL PERFORMANCE")
+        st.markdown("### 📈 LOCAL PERFORMANCE")
         fig = go.Figure(go.Scatter(y=list(worker.history), fill='tozeroy', line=dict(color='#00ff88', width=3)))
         fig.update_layout(height=250, margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', yaxis=dict(gridcolor='#222'), xaxis=dict(gridcolor='#222'))
         st.plotly_chart(fig, use_container_width=True)
 
-        st.markdown("###  MY TASK HISTORY")
+        st.markdown("### 📥 MY TASK HISTORY")
         if not worker.local_events: st.write("Waiting for tasks...")
         else: st.dataframe(pd.DataFrame(list(worker.local_events)), use_container_width=True)
 
