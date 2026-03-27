@@ -1,178 +1,133 @@
 <p align="center">
-
-```text
-██╗  ██╗██╗   ██╗██████╗ ██████╗  █████╗
+<pre align="center">
+██╗  ██╗██╗   ██╗██████╗ ██████╗  █████╗ 
 ██║  ██║╚██╗ ██╔╝██╔══██╗██╔══██╗██╔══██╗
 ███████║ ╚████╔╝ ██║  ██║██████╔╝███████║
 ██╔══██║  ╚██╔╝  ██║  ██║██╔══██╗██╔══██║
 ██║  ██║   ██║   ██████╔╝██║  ██║██║  ██║
 ╚═╝  ╚═╝   ╚═╝   ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
-````
-
+</pre>
 </p>
 
-<h1 align="center">🐉 HYDRA OBSIDIAN v5.0</h1>
+<h1 align="center">🐉 HYDRA OBSIDIAN v2.0.0</h1>
 
 <p align="center">
-  <strong>Decentralized Intelligence</strong> · 
-  <strong>Kinetic Execution</strong> · 
+  <strong>Decentralized Intelligence</strong> • 
+  <strong>Event-Horizon Engine</strong> • 
   <strong>Absolute Mesh Dominance</strong>
 </p>
 
 <p align="center">
   <a href="https://github.com/Leo-Galli/Hydra-Obsidian">
-    <img src="https://img.shields.io/badge/Open-Hydra_Obsidian-0d1117?style=for-the-badge&logo=github">
+    <img src="https://img.shields.io/badge/ACCESS-GRANTED-00ff88?style=for-the-badge&logo=opsgenie&logoColor=black">
   </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/SECURITY-HMAC--256-blueviolet?style=for-the-badge&logo=fortinet&logoColor=white">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/NETWORK-ZEROMQ-orange?style=for-the-badge&logo=mqttpublish&logoColor=white">
+  </a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/github/stars/Leo-Galli/Hydra-Obsidian?style=flat-square&color=00ff88&label=STARS">
+  <img src="https://img.shields.io/github/forks/Leo-Galli/Hydra-Obsidian?style=flat-square&color=00ff88&label=FORKS">
+  <img src="https://img.shields.io/github/license/Leo-Galli/Hydra-Obsidian?style=flat-square&color=00ff88&label=LICENSE">
+  <img src="https://img.shields.io/github/last-commit/Leo-Galli/Hydra-Obsidian?style=flat-square&color=00ff88&label=LAST%20PULSE">
 </p>
 
 ---
 
-<p align="center">
-  <img src="https://img.shields.io/github/stars/Leo-Galli/Hydra-Obsidian?style=for-the-badge&color=yellow">
-  <img src="https://img.shields.io/github/forks/Leo-Galli/Hydra-Obsidian?style=for-the-badge&color=blue">
-  <img src="https://img.shields.io/github/watchers/Leo-Galli/Hydra-Obsidian?style=for-the-badge&color=purple">
-  <img src="https://img.shields.io/github/issues/Leo-Galli/Hydra-Obsidian?style=for-the-badge&color=red">
-</p>
+## ⚡ Technical Core & HUD
+
+> **HYDRA** is a high-fidelity distributed monitoring ecosystem. It uses a custom **Obsidian Supremacy** UI theme to visualize real-time telemetry from remote nodes with sub-millisecond latency.
 
 <p align="center">
-  <img src="https://img.shields.io/github/license/Leo-Galli/Hydra-Obsidian?style=flat-square">
-  <img src="https://img.shields.io/github/last-commit/Leo-Galli/Hydra-Obsidian?style=flat-square">
-  <img src="https://img.shields.io/github/commit-activity/m/Leo-Galli/Hydra-Obsidian?style=flat-square">
-  <img src="https://img.shields.io/github/repo-size/Leo-Galli/Hydra-Obsidian?style=flat-square">
+  <img src="https://skillicons.dev/icons?i=py,linux,windows,git,docker">
 </p>
 
----
-
-## 🖥️ Obsidian HUD — Live Control Interface
-
-<p align="center">
-  <img src="https://i.imgur.com/ovsrTe2.png" width="92%" style="border-radius:10px; box-shadow:0 0 20px rgba(0,255,200,0.2);">
-</p>
-
-<p align="center">
-  <sub><i>Real-time orchestration · Autonomous routing · Sub-millisecond telemetry</i></sub>
-</p>
-
----
-
-## ⚡ Technology Core
-
-<p align="center">
-  <img src="https://skillicons.dev/icons?i=python,linux,docker,git">
-</p>
-
-<p align="center">
-  <a href="https://python.org">
-    <img src="https://img.shields.io/badge/Python-3.11%2B-1f6feb?style=for-the-badge&logo=python&logoColor=white">
-  </a>
-  <a href="https://zeromq.org">
-    <img src="https://img.shields.io/badge/ZeroMQ-Async-8250df?style=for-the-badge">
-  </a>
-  <a href="https://streamlit.io">
-    <img src="https://img.shields.io/badge/Streamlit-HUD-ff4b4b?style=for-the-badge&logo=streamlit&logoColor=white">
-  </a>
-  <a href="https://en.wikipedia.org/wiki/HMAC">
-    <img src="https://img.shields.io/badge/HMAC--SHA256-Secure-238636?style=for-the-badge">
-  </a>
-  <a href="https://en.wikipedia.org/wiki/Telemetry">
-    <img src="https://img.shields.io/badge/Telemetry-RealTime-0ea5e9?style=for-the-badge">
-  </a>
-</p>
-
----
-
-## 🧠 System Overview
-
-> A distributed orchestration engine engineered for **high-density compute environments**.
-
-Hydra Obsidian introduces an **Autonomous Neural Scheduler** capable of:
-
-* ⚙️ real-time node health evaluation
-* 🧠 predictive workload distribution
-* 🌐 dynamic mesh-based execution routing
+### 🛰️ Connectivity Stack
+* **Transport Layer:** ZeroMQ (`ROUTER`/`DEALER` pattern) for high-throughput asynchronous messaging.
+* **Discovery Protocol:** UDP Beacon Broadcasting (Port `5556`) for zero-config node linking.
+* **Security Layer:** `HMAC-SHA256` packet signing to prevent unauthorized data injection.
+* **Interface:** Streamlit powered "Event-Horizon" HUD with custom CSS injection.
 
 ---
 
 ## 🧩 Architecture Highlights
 
-| Module        | Capability                        |
-| ------------- | --------------------------------- |
-| 🧠 Scheduler  | Adaptive real-time load balancing |
-| ⚡ Engine      | ZMQ Dealer-Router async pipeline  |
-| 🔐 Security   | HMAC-based authentication layer   |
-| 📊 Telemetry  | Continuous performance tracking   |
-| 🤖 Dispatcher | Autonomous task injection         |
+
+
+| Component | Capability | Role |
+| :--- | :--- | :--- |
+| **👑 Overlord** | Master Controller | Aggregates data, hosts HUD, broadcasts beacons |
+| **🕵️ Infiltrator** | Worker Node | Collects PSUtil metrics, signs packets, connects to Master |
+| **🔐 Singularity** | Security Key | HMAC-256 pre-shared key for cluster integrity |
+| **📈 Telemetry** | Plotly Engine | Real-time time-series visualization of CPU/RAM load |
 
 ---
-
 
 ## 📂 System Layout
 
-```text id="layout_final"
-HYDRA_CORE/
-├── main.py
-├── requirements.txt
-├── LICENSE
-└── README.md
-```
+```text
+HYDRA_OBSIDIAN/
+├── main.py              # The Monolith (Hybrid Master/Worker logic)
+├── requirements.txt     # Python dependencies
+├── .env                 # Security Key & Port configurations
+└── README.md            # System Documentation
+````
 
----
+-----
 
 ## 🚀 Deployment Protocol
 
-### 1. Initialize Environment
+### 1. Initialize Neural Link
 
-```bash id="deploy_final_1"
-git clone https://github.com/Leo-Galli/Hydra-Obsidian.git
+Ensure your environment meets the minimum requirements for the Event-Horizon engine.
+
+```bash
+git clone [https://github.com/Leo-Galli/Hydra-Obsidian.git](https://github.com/Leo-Galli/Hydra-Obsidian.git)
 cd Hydra-Obsidian
-pip install -r requirements.txt
+pip install streamlit pandas numpy plotly zmq psutil
 ```
 
-### 2. Boot Master Node
+### 2. Boot Master Node (Overlord)
 
-```bash id="deploy_final_2"
+Launch the primary command center on your monitoring station.
+
+```bash
 streamlit run main.py -- master
 ```
 
-### 3. Spawn Worker Nodes
+### 3. Deploy Worker Nodes (Infiltrators)
 
-```bash id="deploy_final_3"
-python main.py worker <MASTER_IP>
+Execute on any machine within the same LAN or via Loopback.
+
+```bash
+streamlit run main.py -- worker
 ```
 
----
+-----
 
-## 🔐 Security Protocol
+## 🔐 Security Governance
 
-* Shared `SECRET_KEY` required across all nodes
-* HMAC validation enforced on every packet
-* Unauthorized nodes automatically rejected
+  * **Handshake Success:** Only nodes with the matching `SECRET_KEY` can establish a link.
+  * **Discovery Pulse:** The master broadcasts its IP; workers listen and engage automatically.
+  * **Integrity Check:** Every JSON payload is hashed. Altered packets are discarded by the Overlord.
 
-⚠️ **Never expose port 5555 without VPN or SSH tunneling**
+-----
 
----
+## 🌍 Target Operations
 
-## 🌍 Target Applications
+  * 🤖 **Compute Grids:** Monitoring AI/ML training clusters.
+  * ⚙️ **DevOps HUD:** Live infrastructure health dashboard.
+  * 🎮 **Resource Tracking:** High-density workload visualization.
 
-* 🤖 AI / ML distributed pipelines
-* 🎮 Render & simulation clusters
-* ⚙️ DevOps compute grids
-* 🛡️ Cybersecurity analysis systems
-
----
-
-## 🤝 Contribution Flow
-
-```bash id="contrib_final"
-git checkout -b feature/your-feature
-git commit -m "feat: add new module"
-git push origin feature/your-feature
-```
-
----
+-----
 
 <p align="center">
-  <b>HYDRA OBSIDIAN</b><br>
-  <sub>High-Performance Distributed Compute Engine</sub><br><br>
-  <sub>© Leonardo Galli · 2026</sub>
+<b>HYDRA OBSIDIAN</b><br>
+<sub>High-Performance Distributed Compute Engine</sub><br><br>
+<img src="https://www.google.com/search?q=https://img.shields.io/badge/System_Status-Online-00ff88%3Fstyle%3Dflat-square"><br>
+<sub>© Leonardo Galli · 2026</sub>
 </p>

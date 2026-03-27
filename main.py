@@ -1,335 +1,320 @@
-import os
-import sys
-import time
-import json
-import uuid
-import socket
-import threading
-import hashlib
-import hmac
-import psutil
+import os, sys, time, json, uuid, socket, threading, hashlib, hmac, psutil, subprocess
 import pandas as pd
 import numpy as np
 import streamlit as st
 import plotly.graph_objects as go
 import zmq
-import subprocess
 from datetime import datetime
 from collections import deque
 
-# --- CONFIGURAZIONE APEX V20 ---
-PROJECT_ID = "HYDRA_APEX_V20"
-CORE_SECRET = b"APEX_SIG_2026_OMEGA"
-TCP_PORT = 5555
-UDP_PORT = 5556
-BT_PORT = 4 # RFCOMM Standard
-MAX_HISTORY = 100
+# --- CORE SYSTEM SETTINGS V30 ---
+VERSION = "V2.0.0 EVENT-HORIZON"
+CODENAME = "HYDRA"
+SECRET_KEY = b"HYDRA_SINGULARITY_ENCRYPT_2026"
+TCP_PORT = 5555   # Data Ingestion Port
+UDP_PORT = 5556   # Discovery Beacon Port
+BT_SSID = "HYDRA_COMMAND_CENTER"
 
-# --- STILI CSS "CYBER-OBSIDIAN" ---
-def apply_apex_styles():
-    st.set_page_config(page_title=PROJECT_ID, layout="wide", initial_sidebar_state="collapsed")
-    st.markdown("""
+# --- UI ARCHITECTURE: OBSIDIAN SUPREMACY ---
+def apply_event_horizon_styles():
+    st.set_page_config(page_title=f"{CODENAME} {VERSION}", layout="wide", initial_sidebar_state="expanded")
+    st.markdown(f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=JetBrains+Mono:wght@300;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500;800&family=Inter:wght@400;900&display=swap');
         
-        :root { --neon-green: #00ff88; --deep-bg: #050505; --panel: #0e0e0e; }
+        :root {{ --neon: #00ff88; --bg: #050505; --panel: #0d0d0d; --border: #1a1a1a; }}
         
-        html, body, [class*="css"] { 
-            background-color: var(--deep-bg); 
-            color: #e0e0e0; 
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .main-header {
-            font-family: 'Syncopate', sans-serif;
-            font-size: 5rem;
-            font-weight: 700;
-            letter-spacing: -8px;
-            background: linear-gradient(180deg, #fff 20%, #222 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: -20px;
-        }
-
-        .status-bar {
-            background: var(--panel);
-            border-bottom: 1px solid #1a1a1a;
-            padding: 10px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .node-card {
-            background: linear-gradient(135deg, #0f0f0f 0%, #050505 100%);
-            border: 1px solid #1f1f1f;
-            border-radius: 20px;
+        html, body, [class*="css"] {{ 
+            background-color: var(--bg); 
+            color: #dcdcdc; 
+            font-family: 'Inter', sans-serif;
+        }}
+        
+        .main-title {{ font-size: 3.5rem; font-weight: 900; letter-spacing: -3px; color: white; margin-bottom: 0px; }}
+        .sub-title {{ color: var(--neon); font-family: 'JetBrains Mono'; font-size: 0.8rem; letter-spacing: 5px; text-transform: uppercase; margin-bottom: 40px; }}
+        
+        .stMetric {{ background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px !important; }}
+        
+        .node-card {{
+            background: linear-gradient(160deg, #0f0f0f, #050505);
+            border: 1px solid var(--border);
+            border-left: 5px solid var(--neon);
             padding: 25px;
+            border-radius: 10px;
             margin-bottom: 20px;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        .node-card:hover {
-            border-color: var(--neon-green);
-            box-shadow: 0 0 30px rgba(0, 255, 136, 0.15);
-            transform: translateY(-5px);
-        }
+            transition: all 0.3s ease-in-out;
+        }}
+        .node-card:hover {{ border-color: var(--neon); transform: scale(1.01); box-shadow: 0 10px 40px rgba(0,255,136,0.1); }}
 
-        .metric-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: var(--neon-green);
-        }
-
-        .console-stream {
+        .log-terminal {{
             background: #000;
+            border: 1px solid var(--border);
+            padding: 15px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
             color: #555;
-            padding: 15px;
-            font-size: 11px;
-            border-radius: 10px;
-            height: 150px;
+            height: 350px;
             overflow-y: auto;
-            border: 1px solid #111;
-        }
+            border-radius: 8px;
+        }}
 
-        .stButton>button {
-            background: transparent;
-            border: 1px solid var(--neon-green);
-            color: var(--neon-green);
-            font-family: 'Syncopate';
-            padding: 15px;
-            border-radius: 10px;
-            width: 100%;
-            text-transform: uppercase;
-        }
-        .stButton>button:hover {
-            background: var(--neon-green);
-            color: black;
-            box-shadow: 0 0 20px var(--neon-green);
-        }
+        .stButton>button {{
+            background: transparent; border: 1px solid var(--neon); color: var(--neon);
+            font-weight: 800; border-radius: 8px; height: 3.5rem; transition: 0.4s; width: 100%;
+            text-transform: uppercase; letter-spacing: 2px;
+        }}
+        .stButton>button:hover {{ background: var(--neon); color: black; box-shadow: 0 0 30px var(--neon); }}
+        
+        .status-pill {{ background: #1a1a1a; padding: 5px 12px; border-radius: 50px; font-size: 0.65rem; color: var(--neon); font-weight: bold; border: 1px solid var(--neon); }}
         </style>
     """, unsafe_allow_html=True)
 
-# --- CLASSE MASTER: IL CUORE DELL'OVERLORD ---
-class ApexMaster:
+# --- MASTER CORE: OVERLORD ENGINE ---
+class HydraMaster:
     def __init__(self):
         self.nodes = {}
-        self.logs = deque(maxlen=200)
-        self.debug = deque(maxlen=50)
-        self.lock = threading.Lock()
+        self.events = deque(maxlen=200)
         self.ctx = zmq.Context()
         self.socket = self.ctx.socket(zmq.ROUTER)
-        self.socket.bind(f"tcp://0.0.0.0:{TCP_PORT}")
-        self.start_time = time.time()
-        self.hostname = socket.gethostname()
-
-    def add_debug(self, msg):
-        self.debug.appendleft(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
-
-    def boot(self):
-        # 1. Thread UDP Broadcast
-        threading.Thread(target=self._broadcast_layer, daemon=True).start()
-        # 2. Thread ZMQ Listener
-        threading.Thread(target=self._network_layer, daemon=True).start()
-        # 3. Bluetooth Simulation Layer (SDP/RFCOMM Beacon)
-        threading.Thread(target=self._bluetooth_layer, daemon=True).start()
-        self.add_debug("HYDRA APEX CORE ONLINE - Tutti i layer di trasmissione attivi")
-
-    def _broadcast_layer(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        while True:
-            for interface, addrs in psutil.net_if_addrs().items():
-                for addr in addrs:
-                    if addr.family == socket.AF_INET and not addr.address.startswith("127."):
-                        # Invia ID Progetto e IP reale
-                        payload = f"APEX_BEACON|{PROJECT_ID}|{addr.address}".encode()
-                        try: sock.sendto(payload, ('<broadcast>', UDP_PORT))
-                        except: pass
-            time.sleep(2)
-
-    def _bluetooth_layer(self):
-        """Tenta di inizializzare un beacon Bluetooth se l'hardware lo permette."""
-        self.add_debug("BT_LAYER: Ricerca controller Bluetooth...")
-        # Nota: In Python puro su Windows senza librerie esterne pesanti, 
-        # emuliamo la presenza tramite il nome del dispositivo.
+        self.socket.setsockopt(zmq.LINGER, 0)
+        
         try:
-            subprocess.run(f'powershell -Command "Set-Service -Name bthserv -StartupType Automatic"', shell=True, capture_output=True)
-            self.add_debug("BT_LAYER: Beacon Bluetooth sincronizzato con Hostname")
+            # Bind to 0.0.0.0 to accept LAN, WiFi, and Localhost traffic
+            self.socket.bind(f"tcp://0.0.0.0:{TCP_PORT}")
+        except Exception as e:
+            st.error(f"CRITICAL: Port {TCP_PORT} is locked. Terminate existing Python processes. Error: {e}")
+            
+        self.lock = threading.Lock()
+        self.active = True
+
+    def launch(self):
+        # 1. UDP Discovery Beacon
+        threading.Thread(target=self._discovery_beacon, daemon=True).start()
+        # 2. Data Stream Collector
+        threading.Thread(target=self._data_collector, daemon=True).start()
+        # 3. Rename Device for Bluetooth identity
+        try: subprocess.run(f'powershell -Command "Rename-Computer -NewName \'{BT_SSID}\' -Force"', shell=True)
         except: pass
 
-    def _network_layer(self):
-        while True:
-            if self.socket.poll(1000):
-                parts = self.socket.recv_multipart()
-                if len(parts) < 4: continue
-                identity, _, payload, sig = parts
-                if hmac.new(CORE_SECRET, payload, hashlib.sha256).hexdigest().encode() == sig:
-                    data = json.loads(payload.decode())
-                    self._ingest(identity, data)
+    def _discovery_beacon(self):
+        """Sends broadcast pulses and direct localhost pulses."""
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            while self.active:
+                # Get current machine IP
+                local_ip = socket.gethostbyname(socket.gethostname())
+                msg = f"HYDRA_BEACON|{BT_SSID}|{local_ip}".encode()
+                # Broadcast to LAN
+                try: s.sendto(msg, ('<broadcast>', UDP_PORT))
+                except: pass
+                # Direct to Localhost (for same-PC connection)
+                try: s.sendto(msg, ('127.0.0.1', UDP_PORT))
+                except: pass
+                time.sleep(2)
 
-    def _ingest(self, identity, data):
+    def _data_collector(self):
+        """Asynchronously receives telemetry and verifies signatures."""
+        while self.active:
+            if self.socket.poll(1000):
+                try:
+                    parts = self.socket.recv_multipart()
+                    identity, _, payload, sig = parts
+                    # Security Check
+                    if hmac.new(SECRET_KEY, payload, hashlib.sha256).hexdigest().encode() == sig:
+                        data = json.loads(payload.decode())
+                        self._sync_node(identity, data)
+                except: pass
+
+    def _sync_node(self, identity, data):
         nid = data['id']
         with self.lock:
-            if nid not in self.nodes: self.add_debug(f"LINK ESTABLISHED: {nid} via {data.get('net','TCP')}")
+            if nid not in self.nodes:
+                self.events.appendleft(f"[{datetime.now().strftime('%H:%M:%S')}] HANDSHAKE SUCCESS: {nid} via {data['ip']}")
             self.nodes[nid] = {
-                'id': nid, 'host': data['host'], 'ip': data['ip'],
-                'stats': data['s'], 'history': data['h'], 'last': time.time()
+                'host': data['host'], 'ip': data['ip'], 'stats': data['s'],
+                'history': data['h'], 'last': time.time()
             }
-            self.logs.appendleft({
-                'TIME': datetime.now().strftime("%H:%M:%S"),
-                'NODE': nid, 'CPU': f"{data['s']['cpu']}%", 'RAM': f"{data['s']['ram']}%"
-            })
 
-# --- CLASSE WORKER: IL NODO INFILTRATO ---
-class ApexWorker:
-    def __init__(self, master_ip):
-        self.id = f"APEX-NODE-{uuid.uuid4().hex[:6].upper()}"
-        self.master_ip = master_ip
+# --- WORKER CORE: INFILTRATOR ENGINE ---
+class HydraWorker:
+    def __init__(self, target_ip):
+        self.id = f"HYDRA-NODE-{uuid.uuid4().hex[:6].upper()}"
+        self.target = target_ip
         self.ctx = zmq.Context()
         self.sock = self.ctx.socket(zmq.DEALER)
+        self.sock.setsockopt(zmq.LINGER, 0)
         self.sock.setsockopt_string(zmq.IDENTITY, self.id)
-        self.history = deque([0]*60, maxlen=60)
-        self.active = False
+        self.cpu_history = deque([0]*60, maxlen=60)
+        self.connected = False
 
-    def connect_all(self):
+    def engage_link(self):
         try:
-            self.sock.connect(f"tcp://{self.master_ip}:{TCP_PORT}")
-            self.active = True
-            threading.Thread(target=self._heartbeat, daemon=True).start()
+            self.sock.connect(f"tcp://{self.target}:{TCP_PORT}")
+            self.connected = True
+            threading.Thread(target=self._telemetry_stream, daemon=True).start()
             return True
         except: return False
 
-    def _heartbeat(self):
-        while True:
+    def _telemetry_stream(self):
+        while self.connected:
             stats = {
                 'cpu': psutil.cpu_percent(),
                 'ram': psutil.virtual_memory().percent,
                 'disk': psutil.disk_usage('/').percent,
                 'threads': threading.active_count()
             }
-            self.history.append(stats['cpu'])
+            self.cpu_history.append(stats['cpu'])
             payload = {
-                'id': self.id, 'host': socket.gethostname(),
-                'ip': socket.gethostbyname(socket.gethostname()),
-                's': stats, 'h': list(self.history), 'net': 'APEX_TUNNEL'
+                'id': self.id, 'host': socket.gethostname(), 'ip': self.target,
+                's': stats, 'h': list(self.cpu_history)
             }
-            msg = json.dumps(payload).encode()
-            sig = hmac.new(CORE_SECRET, msg, hashlib.sha256).hexdigest().encode()
-            try: self.sock.send_multipart([b"", msg, sig])
-            except: self.active = False
+            raw_data = json.dumps(payload).encode()
+            signature = hmac.new(SECRET_KEY, raw_data, hashlib.sha256).hexdigest().encode()
+            try:
+                self.sock.send_multipart([b"", raw_data, signature])
+            except: self.connected = False
             time.sleep(1)
 
-# --- UI APEX ---
+# --- APP ROUTING & UI ---
 def main():
-    apply_apex_styles()
-    
-    if len(sys.argv) < 2:
-        st.error("Specificare 'master' o 'worker'")
-        return
-
-    mode = sys.argv[1].lower()
+    apply_event_horizon_styles()
+    mode = sys.argv[1].lower() if len(sys.argv) > 1 else "master"
 
     if mode == "master":
-        if 'master_inst' not in st.session_state:
-            st.session_state.master_inst = ApexMaster()
-            st.session_state.master_inst.boot()
+        if 'master' not in st.session_state:
+            st.session_state.master = HydraMaster()
+            st.session_state.master.launch()
         
-        m = st.session_state.master_inst
-
-        # UI Header
-        st.markdown(f"<h1 class='main-header'>HYDRA APEX</h1>", unsafe_allow_html=True)
-        st.markdown(f"<p style='letter-spacing:5px; color:#555; margin-left:10px;'>CORE VERSION 20.0 // HOST: {m.hostname}</p>", unsafe_allow_html=True)
+        m = st.session_state.master
         
-        # Real-time Stats superiori
+        st.markdown("<div class='main-title'>HYDRA OVERLORD</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='sub-title'>{VERSION} // BT_SSID: {BT_SSID}</div>", unsafe_allow_html=True)
+        
+        # Metrics Top Bar
+        active_nodes = {k: v for k, v in m.nodes.items() if time.time() - v['last'] < 10}
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("NODI ATTIVI", len(m.nodes))
-        c2.metric("TRAFFICO", f"{len(m.logs)}")
-        c3.metric("SECURITY", "AES-HMAC")
-        c4.metric("UPTIME", f"{int(time.time()-m.start_time)}s")
+        c1.metric("NODES LINKED", len(active_nodes))
+        c2.metric("ACTIVE PORT", TCP_PORT)
+        c3.metric("ENCRYPTION", "HMAC-256")
+        c4.metric("BROADCASTING", "ENABLED")
 
         st.write("---")
 
-        # Layout a due colonne
-        left_col, right_col = st.columns([2, 1])
-
-        with left_col:
-            st.subheader("🛰️ NEURAL MESH TOPOLOGY")
-            if not m.nodes:
-                st.info("In attesa di segnali dai nodi... Assicurati che i client siano sulla stessa rete o Bluetooth.")
-            else:
-                for nid, data in m.nodes.items():
-                    if time.time() - data['last'] < 10:
-                        st.markdown(f"""
-                            <div class='node-card'>
-                                <div style='display:flex; justify-content:space-between;'>
-                                    <b style='font-size:22px; color:var(--neon-green);'>{data['host']}</b>
-                                    <span style='color:#444;'>{data['ip']}</span>
-                                </div>
-                                <div style='margin-top:15px; display:flex; gap:20px;'>
-                                    <div><small>CPU</small><br><span class='metric-value'>{data['stats']['cpu']}%</span></div>
-                                    <div><small>RAM</small><br><span class='metric-value'>{data['stats']['ram']}%</span></div>
-                                    <div><small>THREADS</small><br><span class='metric-value'>{data['stats']['threads']}</span></div>
-                                </div>
+        col_left, col_right = st.columns([2, 1])
+        
+        with col_left:
+            st.subheader(" GLOBAL NODE TOPOLOGY")
+            if not active_nodes:
+                st.info("Scanning for incoming handshake requests on loopback and LAN...")
+            for nid, d in active_nodes.items():
+                with st.container():
+                    st.markdown(f"""
+                        <div class='node-card'>
+                            <div style='display:flex; justify-content:space-between; align-items:center;'>
+                                <span><span class='status-pill'>ONLINE</span> <b>{d['host']}</b></span>
+                                <code style='color:#555;'>{nid}</code>
                             </div>
-                        """, unsafe_allow_html=True)
-                        fig = go.Figure(go.Scatter(y=data['history'], fill='tozeroy', line=dict(color='#00ff88', width=3)))
-                        fig.update_layout(height=100, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False, yaxis_visible=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                        st.plotly_chart(fig, use_container_width=True, key=nid)
+                            <div style='display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:20px; margin-top:20px;'>
+                                <div><small>CPU USAGE</small><br><b style='color:var(--neon); font-size:1.5rem;'>{d['stats']['cpu']}%</b></div>
+                                <div><small>RAM LOAD</small><br><b style='color:var(--neon); font-size:1.5rem;'>{d['stats']['ram']}%</b></div>
+                                <div><small>THREADS</small><br><b style='color:var(--neon); font-size:1.5rem;'>{d['stats']['threads']}</b></div>
+                                <div><small>LOCAL IP</small><br><b>{d['ip']}</b></div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    # Real-time Graph
+                    fig = go.Figure(go.Scatter(y=d['history'], fill='tozeroy', line=dict(color='#00ff88', width=2)))
+                    fig.update_layout(height=120, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False, yaxis_visible=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                    st.plotly_chart(fig, use_container_width=True, key=nid)
 
-        with right_col:
-            st.subheader("📟 DEBUG CONSOLE")
-            debug_text = "\n".join(list(m.debug))
-            st.markdown(f"<div class='console-stream'>{debug_text}</div>", unsafe_allow_html=True)
-            
-            st.subheader("📡 NETWORK CONTROL")
-            if st.button("FORCE WIFI AP"):
-                subprocess.run(f'netsh wlan set hostednetwork mode=allow ssid=HYDRA_APEX key=password123', shell=True)
-                subprocess.run('netsh wlan start hostednetwork', shell=True)
-                m.add_debug("Comando AP inviato al sistema")
-            
-            st.write("### 📜 DATA STREAM")
-            st.dataframe(pd.DataFrame(list(m.logs)), use_container_width=True)
+        with col_right:
+            st.subheader(" MASTER COMMAND LOG")
+            log_content = "\n".join(list(m.events)) if m.events else "Listening for handshake signals..."
+            st.markdown(f"<div class='log-terminal'>{log_content}</div>", unsafe_allow_html=True)
+            if st.button("RELOAD LOGS"): st.rerun()
 
     elif mode == "worker":
-        st.markdown("<h1 class='main-header'>HYDRA NODE</h1>", unsafe_allow_html=True)
-        
-        if 'worker_inst' not in st.session_state:
-            st.subheader("📡 Handshake Layer")
-            
-            # Radar Scan
-            if st.button("🛰️ AVVIA RADAR SCAN (BT/WIFI/UDP)"):
-                with st.spinner("Scansione frequenze APEX..."):
-                    scanner = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                    scanner.bind(('', UDP_PORT))
-                    scanner.settimeout(5.0)
-                    try:
-                        data, addr = scanner.recvfrom(1024)
-                        if "APEX_BEACON" in data.decode():
-                            st.session_state.master_found = data.decode().split("|")[2]
-                            st.success(f"MASTER RILEVATO: {st.session_state.master_found}")
-                    except: st.error("Nessun beacon trovato. Verifica Bluetooth o Wi-Fi.")
-                    finally: scanner.close()
+        st.markdown("<div class='main-title'>HYDRA WORKER</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='sub-title'>INFILTRATION MODULE // {VERSION}</div>", unsafe_allow_html=True)
 
-            target = st.text_input("TARGET IP:", st.session_state.get('master_found', ''))
-            if st.button("🚀 INFILTRATE MESH"):
-                w = ApexWorker(target)
-                if w.connect_all():
-                    st.session_state.worker_inst = w
-                    st.rerun()
-        else:
-            w = st.session_state.worker_inst
-            st.markdown(f"<div class='node-card'>STATUS: <b>ONLINE</b><br>CONNECTED TO: {w.master_ip}</div>", unsafe_allow_html=True)
+        if 'step' not in st.session_state: st.session_state.step = 1
+
+        # Interactive Step Guide
+        s1, s2, s3 = st.columns(3)
+        s1.markdown(f"<div style='text-align:center; color:{'#00ff88' if st.session_state.step >= 1 else '#444'};'>[ 1. SIGNAL ]</div>", unsafe_allow_html=True)
+        s2.markdown(f"<div style='text-align:center; color:{'#00ff88' if st.session_state.step >= 2 else '#444'};'>[ 2. AUTH ]</div>", unsafe_allow_html=True)
+        s3.markdown(f"<div style='text-align:center; color:{'#00ff88' if st.session_state.step >= 3 else '#444'};'>[ 3. STREAM ]</div>", unsafe_allow_html=True)
+
+        st.write("---")
+
+        if st.session_state.step == 1:
+            st.subheader("Locate Master Controller")
+            method = st.radio("Discovery Strategy:", ["Automatic (Beacon + Localhost)", "Aggressive Sweep (Subnet)", "Manual Static IP"])
             
-            c1, c2 = st.columns(2)
-            c1.metric("LOCAL CPU", f"{psutil.cpu_percent()}%")
-            c2.metric("LOCAL RAM", f"{psutil.virtual_memory().percent}%")
+            if st.button("INITIATE DISCOVERY"):
+                if method == "Automatic (Beacon + Localhost)":
+                    with st.spinner("Listening for Master pulses..."):
+                        try:
+                            # Try UDP Beacon first
+                            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                                s.bind(('', UDP_PORT))
+                                s.settimeout(3.0)
+                                data, addr = s.recvfrom(1024)
+                                raw = data.decode().split("|")
+                                if raw[0] == "HYDRA_BEACON":
+                                    st.session_state.target_ip = raw[2]
+                                    st.session_state.step = 2; st.rerun()
+                        except:
+                            # If no beacon, check if Master is on the same PC
+                            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                                s.settimeout(0.5)
+                                if s.connect_ex(('127.0.0.1', TCP_PORT)) == 0:
+                                    st.session_state.target_ip = "127.0.0.1"
+                                    st.session_state.step = 2; st.rerun()
+                            st.error("No Master detected on Localhost or LAN. Is the Master script running?")
+
+                elif method == "Aggressive Sweep (Subnet)":
+                    with st.spinner("Sweeping local subnet for Hydra Master..."):
+                        local_ip = socket.gethostbyname(socket.gethostname())
+                        base_ip = ".".join(local_ip.split('.')[:-1])
+                        for i in range(1, 255):
+                            target = f"{base_ip}.{i}"
+                            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                                s.settimeout(0.01)
+                                if s.connect_ex((target, TCP_PORT)) == 0:
+                                    st.session_state.target_ip = target
+                                    st.session_state.step = 2; st.rerun()
+                        st.error("Aggressive sweep failed.")
+
+                elif method == "Manual Static IP":
+                    ip_in = st.text_input("Enter Master IP Address:")
+                    if ip_in: st.session_state.target_ip = ip_in; st.session_state.step = 2; st.rerun()
+
+        elif st.session_state.step == 2:
+            st.success(f"Master Target Identified: {st.session_state.target_ip}")
+            key_in = st.text_input("Security Access Key:", type="password")
+            if st.button("AUTHORIZE TUNNEL"):
+                if key_in.encode() == SECRET_KEY:
+                    st.session_state.worker = HydraWorker(st.session_state.target_ip)
+                    if st.session_state.worker.engage_link():
+                        st.session_state.step = 3; st.rerun()
+                else: st.error("Access Denied: Invalid Security Signature.")
+
+        elif st.session_state.step == 3:
+            w = st.session_state.worker
+            st.markdown(f"<div class='node-card'>SECURE LINK STABILIZED: {st.session_state.target_ip}</div>", unsafe_allow_html=True)
+            st.metric("NODE UNIQUE IDENTIFIER", w.id)
             
-            fig = go.Figure(go.Scatter(y=list(w.history), fill='tozeroy', line=dict(color='#00ff88', width=4)))
-            fig.update_layout(height=400, margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            # Telemetry Visualization
+            fig = go.Figure(go.Scatter(y=list(w.cpu_history), fill='tozeroy', line=dict(color='#00ff88', width=3)))
+            fig.update_layout(height=450, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0,r=0,t=0,b=0))
             st.plotly_chart(fig, use_container_width=True)
             
-            if st.button("🔌 SCOLLEGATI"):
-                del st.session_state.worker_inst
+            if st.button("TERMINATE CONNECTION"):
+                st.session_state.step = 1
+                del st.session_state.worker
                 st.rerun()
 
     time.sleep(1); st.rerun()
