@@ -1,8 +1,9 @@
-pyzmq==25.1.2
-psutil==5.9.8
-python-dotenv==1.0.1
-numpy==1.26.4
-pandas==2.2.1
-streamlit==1.32.2
-plotly==5.19.0
-rich==13.7.1
+# HYDRA OBSIDIAN v2.1.0 — Dependencies
+# Install with: pip install -r requirements.txt
+
+streamlit>=1.40.0      # Dashboard UI + session state
+pyzmq>=26.0.0          # ZeroMQ ROUTER/DEALER messaging
+psutil>=6.0.0          # CPU / RAM / Disk telemetry
+plotly>=5.24.0         # Real-time time-series charts
+pandas>=2.2.0          # Data structures (Streamlit internal use)
+numpy>=1.26.0          # Numerical arrays (Plotly dependency)
