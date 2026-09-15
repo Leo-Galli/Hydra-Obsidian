@@ -10,7 +10,7 @@
 </pre>
 </p>
 
-<h1 align="center">HYDRA OBSIDIAN v3.1.0</h1>
+<h1 align="center">HYDRA OBSIDIAN v3.2.0</h1>
 
 <p align="center">
   Monitoraggio distribuito · Terminal remoto admin · Home lab &amp; Datacenter
@@ -112,22 +112,42 @@ pip install -r requirements.txt
 
 ## Avvio rapido
 
+### Chiave cluster (obbligatoria)
+
+**La chiave non e piu nel codice.** Master e Worker devono usare la **stessa chiave** (min 8 caratteri).
+
+**Metodo 1 — argomento CLI (consigliato):**
+```bash
+streamlit run main.py -- master MiaChiaveSegreta2026
+streamlit run main.py -- worker MiaChiaveSegreta2026
+```
+
+**Metodo 2 — variabile d'ambiente:**
+```bash
+# Windows
+set HYDRA_SECRET=MiaChiaveSegreta2026
+streamlit run main.py -- master
+
+# Linux/macOS
+export HYDRA_SECRET=MiaChiaveSegreta2026
+streamlit run main.py -- worker
+```
+
+**Metodo 3 — schermata iniziale:** se non passi la chiave, l'app chiede la password al primo avvio.
+
 ### Test locale (stesso PC)
 
 **Terminale 1 — Master:**
 ```bash
-streamlit run main.py -- master
+streamlit run main.py -- master MiaChiaveSegreta2026
 ```
 
-**Terminale 2 — Worker (preferibilmente come admin):**
+**Terminale 2 — Worker (come admin):**
 ```bash
-# Windows: apri PowerShell/CMD come Amministratore
-streamlit run main.py -- worker
+streamlit run main.py -- worker MiaChiaveSegreta2026
 ```
 
-Nel Worker: discovery automatica → chiave `HYDRA_SINGULARITY_ENCRYPT_2026` → connetti.
-
-Nel Master: tab **Monitoraggio** per metriche, tab **Terminal remoto** per comandi.
+Discovery UDP automatica. Tab **Monitoraggio** e **Terminal remoto** sul Master.
 
 ### LAN / Datacenter
 
@@ -233,19 +253,16 @@ Formato frame ZeroMQ: `[identity | "" | payload_json | hmac_signature]`
 
 ## Configurazione
 
-In cima a `main.py`:
+| Parametro | Valore | Note |
+|:---|:---|:---|
+| Chiave cluster | CLI / `HYDRA_SECRET` / UI | **Non hardcoded** — stessa su tutti i nodi |
+| `TCP_PORT` | 5555 | ZeroMQ telemetria + comandi |
+| `UDP_PORT` | 5556 | Beacon Master |
+| `WORKER_UDP_PORT` | 5557 | Annuncio Worker |
+| `REFRESH_SEC` | 2 | Auto-refresh dashboard |
+| `MIN_KEY_LEN` | 8 | Lunghezza minima chiave |
 
-```python
-SECRET_KEY = b"HYDRA_SINGULARITY_ENCRYPT_2026"  # Cluster + firma HMAC
-ADMIN_KEY = SECRET_KEY                           # Gate UI terminal admin
-TCP_PORT = 5555
-UDP_PORT = 5556
-NODE_TIMEOUT_SEC = 10
-CMD_TIMEOUT_SEC = 30
-CMD_MAX_LEN = 4096
-```
-
-Master e Worker devono condividere la stessa `SECRET_KEY`.
+Porte modificabili in cima a `main.py`.
 
 ---
 
@@ -253,9 +270,9 @@ Master e Worker devono condividere la stessa `SECRET_KEY`.
 
 | Problema | Soluzione |
 |:---|:---|
+| **FIRMA INVALIDA** (spam log) | Master e Worker usano **chiavi diverse** — riavvia entrambi con la stessa chiave CLI |
 | Comando senza output | Attendi 1-2 refresh; verifica Worker online |
 | `Access denied` su Windows | Riavvia Worker come Amministratore |
-| Comando Linux fallisce su Windows | Usa sintassi corretta per OS target |
 | EXEC TIMEOUT | Comando > 30s o nodo non risponde |
 | Nodo sparisce | Timeout 10s — riavvia Worker |
 | Porta 5555 occupata | Chiudi altri processi Streamlit/Python |
@@ -263,6 +280,13 @@ Master e Worker devono condividere la stessa `SECRET_KEY`.
 ---
 
 ## Changelog
+
+### v3.2.0 — Security & Signature Fix
+- Chiave cluster configurabile all'avvio (CLI / env / UI) — rimossa dal codice
+- Fix FIRMA INVALIDA: JSON canonico, parsing ZMQ robusto, no TCP scan su porta ZMQ
+- Log invalid signature rate-limited (no spam)
+- UI zinc/professional redesign
+- Discovery solo UDP (beacon + peer announce)
 
 ### v3.1.0 — Auto-Discovery & UI Pro
 - Auto-refresh nativo con `st.fragment` (ogni 2s, senza reload pagina)
