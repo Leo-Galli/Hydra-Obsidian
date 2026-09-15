@@ -55,8 +55,8 @@ Due tipi di nodi:
 
 | Nodo | Ruolo | Comando |
 |:---|:---|:---|
-| **Master (Overlord)** | Dashboard, aggregazione metriche, terminal remoto | `streamlit run main.py -- master` |
-| **Worker (Agent)** | Telemetria + esecuzione comandi sul host locale | `streamlit run main.py -- worker` |
+| **Master (Overlord)** | Dashboard, aggregazione metriche, terminal remoto | `streamlit run main.py -- master TUA_CHIAVE` |
+| **Worker (Agent)** | Telemetria + esecuzione comandi sul host locale | `streamlit run main.py -- worker TUA_CHIAVE` |
 
 ---
 
