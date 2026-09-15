@@ -10,7 +10,7 @@
 </pre>
 </p>
 
-<h1 align="center">HYDRA OBSIDIAN v3.0.0</h1>
+<h1 align="center">HYDRA OBSIDIAN v3.1.0</h1>
 
 <p align="center">
   Monitoraggio distribuito · Terminal remoto admin · Home lab &amp; Datacenter
@@ -263,6 +263,13 @@ Master e Worker devono condividere la stessa `SECRET_KEY`.
 ---
 
 ## Changelog
+
+### v3.1.0 — Auto-Discovery & UI Pro
+- Auto-refresh nativo con `st.fragment` (ogni 2s, senza reload pagina)
+- Master: scan subnet periodico + listener UDP peer (porta 5557)
+- Worker: discovery automatica continua + auto-reconnect
+- UI redesign slate/professional (8px grid, Inter, stati hover/focus)
+- Pannello peer rilevati in attesa di connessione
 
 ### v3.0.0 — Remote Exec & Datacenter
 - Terminal remoto admin da Master (singolo nodo + broadcast)
