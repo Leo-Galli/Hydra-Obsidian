@@ -2,13 +2,11 @@
 address = "0.0.0.0"
 port = 8501
 headless = true
-enableCORS = false
 enableXsrfProtection = true
 runOnSave = false
 
 [browser]
 gatherUsageStats = false
-serverAddress = "0.0.0.0"
 
 [client]
 showErrorDetails = false
