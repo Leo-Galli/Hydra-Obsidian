@@ -10,7 +10,7 @@
 </pre>
 </p>
 
-<h1 align="center">HYDRA OBSIDIAN v3.2.0</h1>
+<h1 align="center">HYDRA OBSIDIAN v3.2.1</h1>
 
 <p align="center">
   Monitoraggio distribuito · Terminal remoto admin · Home lab &amp; Datacenter
@@ -149,6 +149,17 @@ streamlit run main.py -- worker MiaChiaveSegreta2026
 
 Discovery UDP automatica. Tab **Monitoraggio** e **Terminal remoto** sul Master.
 
+### Accesso da telefono (LAN)
+
+La dashboard e gia configurata per ascoltare su tutta la rete (`0.0.0.0:8501`).
+
+1. Avvia il Master sul PC
+2. Nella sidebar compare l'URL **Network** (es. `http://192.168.1.85:8501`)
+3. Apri quell'URL dal browser del telefono (stessa WiFi)
+4. Puoi **ricaricare la pagina** senza perdere il backend — la sessione ZMQ resta attiva
+
+> La porta **8501** e la dashboard web. La porta **5555** e solo il backend interno (non aprirla nel browser).
+
 ### LAN / Datacenter
 
 1. Master su macchina di controllo (es. `10.0.0.1`)
@@ -280,6 +291,12 @@ Porte modificabili in cima a `main.py`.
 ---
 
 ## Changelog
+
+### v3.2.1 — Mobile & Reload Fix
+- Dashboard accessibile da telefono via LAN (`0.0.0.0:8501`)
+- Reload pagina sicuro con `st.cache_resource` (no doppio bind porta 5555)
+- URL Network visibile in sidebar e banner
+- Config Streamlit in `.streamlit/config.toml`
 
 ### v3.2.0 — Security & Signature Fix
 - Chiave cluster configurabile all'avvio (CLI / env / UI) — rimossa dal codice

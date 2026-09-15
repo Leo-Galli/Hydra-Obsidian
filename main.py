@@ -6,7 +6,8 @@ import plotly.graph_objects as go
 import zmq
 from collections import deque
 
-VERSION = "V3.2.0"
+VERSION = "V3.2.1"
+UI_PORT = 8501
 CODENAME = "HYDRA"
 TCP_PORT = 5555
 UDP_PORT = 5556
@@ -168,9 +169,23 @@ def apply_styles():
 
 def get_local_ip() -> str:
     try:
-        return socket.gethostbyname(socket.gethostname())
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
     except Exception:
-        return "127.0.0.1"
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            return "127.0.0.1"
+
+
+def get_dashboard_urls() -> dict:
+    ip = get_local_ip()
+    return {
+        "local": f"http://127.0.0.1:{UI_PORT}",
+        "network": f"http://{ip}:{UI_PORT}",
+        "ip": ip,
+    }
 
 
 def get_system_meta() -> dict:
@@ -299,12 +314,14 @@ class HydraMaster:
         self.ctx = zmq.Context()
         self.socket = self.ctx.socket(zmq.ROUTER)
         self.socket.setsockopt(zmq.LINGER, 0)
+        self.socket.setsockopt(zmq.REUSEADDR, 1)
         try:
             self.socket.bind(f"tcp://0.0.0.0:{TCP_PORT}")
             self._socket_ok = True
-            self.events.appendleft(f"[{self._ts()}] Master attivo su :{TCP_PORT}")
+            self.events.appendleft(f"[{self._ts()}] Backend ZMQ attivo (porta {TCP_PORT})")
         except Exception as e:
-            self.events.appendleft(f"[{self._ts()}] ERRORE bind :{e}")
+            self._socket_ok = False
+            self.events.appendleft(f"[{self._ts()}] Backend gia attivo o porta {TCP_PORT} occupata")
 
     def _ts(self):
         return datetime.now().strftime("%H:%M:%S")
@@ -614,11 +631,32 @@ def render_terminal(m: HydraMaster, active: dict):
     st.markdown(f'<div class="panel"><div class="panel-bar"><span class="panel-title">remote.shell</span></div><div class="panel-body tall">{body}</div></div>', unsafe_allow_html=True)
 
 
+@st.cache_resource(show_spinner=False)
+def get_master(secret_key: bytes) -> HydraMaster:
+    master = HydraMaster(secret_key)
+    master.launch()
+    atexit.register(master.shutdown)
+    return master
+
+
 def render_master(m: HydraMaster):
-    render_header("HYDRA OVERLORD", f"{VERSION} / TCP {TCP_PORT} / UDP {UDP_PORT}", "ACTIVE", f"Live {REFRESH_SEC}s")
+    urls = get_dashboard_urls()
+    render_header(
+        "HYDRA OVERLORD",
+        f"{VERSION}  /  Dashboard LAN: {urls['network']}",
+        "ACTIVE",
+        f"Aggiornamento ogni {REFRESH_SEC}s",
+    )
+    st.markdown(f"""
+    <div class="banner"><span class="dot" style="background:{T['accent']}"></span>
+    <div class="banner-text">
+    <strong>Accesso mobile</strong> — apri da telefono (stessa WiFi): 
+    <strong>{html.escape(urls['network'])}</strong><br>
+    Puoi ricaricare la pagina liberamente; la sessione backend resta attiva.
+    </div></div>
+    """, unsafe_allow_html=True)
     if not m._socket_ok:
-        st.error(f"Porta {TCP_PORT} occupata.")
-        return
+        st.warning("Backend telemetry gia in esecuzione in background. La dashboard resta utilizzabile.")
     live_master(m)
 
 
@@ -704,21 +742,18 @@ def main():
     apply_styles()
     mode = sys.argv[1].lower() if len(sys.argv) > 1 else "master"
     key = ensure_cluster_key(mode)
+    urls = get_dashboard_urls()
     with st.sidebar:
         st.markdown(f"**{CODENAME}** `{VERSION}`")
         st.caption(f"Mode: {mode.upper()}")
+        st.markdown("**Dashboard**")
+        st.code(urls["local"], language=None)
+        st.code(urls["network"], language=None)
+        st.caption("Usa Network URL da telefono (stessa WiFi)")
+        st.markdown("**Avvio**")
         st.code(f"streamlit run main.py -- {mode} CHIAVE", language="bash")
-        st.caption("Chiave caricata. Stessa chiave su tutti i nodi.")
     if mode == "master":
-        if "master" not in st.session_state or st.session_state.get("master_key") != key:
-            if "master" in st.session_state:
-                st.session_state.master.shutdown()
-            master = HydraMaster(key)
-            master.launch()
-            st.session_state.master = master
-            st.session_state.master_key = key
-            atexit.register(master.shutdown)
-        render_master(st.session_state.master)
+        render_master(get_master(key))
     elif mode == "worker":
         render_worker(key)
     else:
