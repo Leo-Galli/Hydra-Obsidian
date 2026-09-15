@@ -1,4 +1,4 @@
-import sys, time, json, uuid, socket, threading, hashlib, hmac
+import sys, os, time, json, uuid, socket, threading, hashlib, hmac, atexit, subprocess, platform, html
 import psutil
 import streamlit as st
 import plotly.graph_objects as go
@@ -6,362 +6,127 @@ import zmq
 from datetime import datetime
 from collections import deque
 
-# --- CORE SYSTEM SETTINGS ---
-VERSION = "V2.2.0"
+# --- CORE ---
+VERSION = "V3.0.0"
 CODENAME = "HYDRA"
 SECRET_KEY = b"HYDRA_SINGULARITY_ENCRYPT_2026"
+ADMIN_KEY = SECRET_KEY
 TCP_PORT = 5555
 UDP_PORT = 5556
 BT_SSID = "HYDRA_COMMAND_CENTER"
 NODE_TIMEOUT_SEC = 10
 REFRESH_MS = 2000
+CMD_TIMEOUT_SEC = 30
+CMD_MAX_LEN = 4096
+EXEC_RESULT_TTL = 60
 
-NEON = "#00ff88"
-NEON_DIM = "#00cc6a"
-BG = "#030303"
-PANEL = "#0a0a0a"
-BORDER = "#1e1e1e"
-TEXT = "#e8e8e8"
-MUTED = "#666"
-WARN = "#ff6b35"
-ERROR = "#ff3366"
+C = {
+    "bg": "#08080c",
+    "surface": "#0f0f14",
+    "surface2": "#14141b",
+    "border": "rgba(255,255,255,0.07)",
+    "border_hi": "rgba(16,185,129,0.35)",
+    "accent": "#10b981",
+    "accent_dim": "#059669",
+    "accent_glow": "rgba(16,185,129,0.12)",
+    "text": "#f1f5f9",
+    "text2": "#94a3b8",
+    "muted": "#64748b",
+    "warn": "#f59e0b",
+    "error": "#ef4444",
+}
 
 
 def apply_styles():
-    st.set_page_config(
-        page_title=f"{CODENAME} {VERSION}",
-        page_icon="🐉",
-        layout="wide",
-        initial_sidebar_state="expanded",
-    )
+    st.set_page_config(page_title=f"{CODENAME} {VERSION}", layout="wide", initial_sidebar_state="expanded")
     st.markdown(f"""
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Space+Grotesk:wght@400;500;700&display=swap');
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+    :root {{
+        --bg:{C['bg']}; --surface:{C['surface']}; --surface2:{C['surface2']};
+        --border:{C['border']}; --accent:{C['accent']}; --text:{C['text']};
+        --text2:{C['text2']}; --muted:{C['muted']};
+    }}
+    html,body,[class*="css"] {{ background:var(--bg)!important; color:var(--text); font-family:'IBM Plex Sans',sans-serif; }}
+    #MainMenu,footer,header {{ visibility:hidden; }}
+    .block-container {{ padding:2rem 2.5rem 3rem; max-width:1440px; }}
+    [data-testid="stSidebar"] {{ background:var(--surface); border-right:1px solid var(--border); }}
+    [data-testid="stSidebar"] .block-container {{ padding-top:1.5rem; }}
 
-        :root {{
-            --neon: {NEON};
-            --neon-dim: {NEON_DIM};
-            --bg: {BG};
-            --panel: {PANEL};
-            --border: {BORDER};
-            --text: {TEXT};
-            --muted: {MUTED};
-        }}
+    .hero {{ background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:28px 32px; margin-bottom:24px; display:flex; align-items:center; justify-content:space-between; gap:24px; }}
+    .hero-eyebrow {{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }}
+    .hero-title {{ font-size:32px; font-weight:700; letter-spacing:-.03em; color:var(--text); margin:0; line-height:1.15; }}
+    .hero-meta {{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text2); margin:8px 0 0; }}
+    .hero-status {{ display:flex; align-items:center; gap:10px; background:{C['accent_glow']}; border:1px solid {C['border_hi']}; border-radius:999px; padding:10px 18px; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:500; letter-spacing:.08em; color:var(--accent); white-space:nowrap; }}
+    .status-dot {{ width:8px; height:8px; background:var(--accent); border-radius:50%; box-shadow:0 0 8px var(--accent); animation:blink 2.4s ease-in-out infinite; }}
+    @keyframes blink {{ 0%,100%{{opacity:1}} 50%{{opacity:.35}} }}
+    @media(prefers-reduced-motion:reduce){{ .status-dot{{animation:none}} }}
 
-        html, body, [class*="css"] {{
-            background-color: var(--bg) !important;
-            color: var(--text);
-            font-family: 'Space Grotesk', sans-serif;
-        }}
+    [data-testid="stMetric"] {{ background:var(--surface)!important; border:1px solid var(--border)!important; border-radius:12px!important; padding:18px 20px!important; }}
+    [data-testid="stMetricLabel"] {{ font-family:'IBM Plex Mono',monospace!important; font-size:10px!important; letter-spacing:.12em!important; text-transform:uppercase!important; color:var(--muted)!important; }}
+    [data-testid="stMetricValue"] {{ font-size:26px!important; font-weight:600!important; color:var(--text)!important; }}
+    [data-testid="stMetricDelta"] {{ display:none; }}
 
-        #MainMenu, footer, header {{ visibility: hidden; }}
+    [data-testid="stVerticalBlockBorderWrapper"] {{ background:var(--surface)!important; border:1px solid var(--border)!important; border-radius:14px!important; padding:4px 8px 8px!important; margin-bottom:16px!important; box-shadow:0 4px 24px rgba(0,0,0,.25); }}
+    [data-testid="stVerticalBlockBorderWrapper"]:hover {{ border-color:{C['border_hi']}!important; }}
 
-        [data-testid="stSidebar"] {{
-            background: linear-gradient(180deg, #0d0d0d 0%, #050505 100%);
-            border-right: 1px solid var(--border);
-        }}
-        [data-testid="stSidebar"] .block-container {{ padding-top: 2rem; }}
+    .node-head {{ display:flex; align-items:center; justify-content:space-between; padding:12px 8px 16px; border-bottom:1px solid var(--border); margin-bottom:4px; }}
+    .node-head-left {{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }}
+    .node-badge {{ font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:500; letter-spacing:.1em; color:var(--accent); background:{C['accent_glow']}; border:1px solid {C['border_hi']}; border-radius:6px; padding:4px 10px; }}
+    .node-os {{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--muted); background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:4px 10px; }}
+    .node-name {{ font-size:18px; font-weight:600; color:var(--text); }}
+    .node-id {{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:5px 10px; }}
+    .stat-label {{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0 0 4px; }}
+    .stat-num {{ font-size:22px; font-weight:600; color:var(--text); margin:0 0 10px; }}
+    .stat-num.accent {{ color:var(--accent); }}
+    .stat-sub {{ font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--text2); margin:0 0 4px; }}
+    div[data-testid="stProgressBar"]>div {{ background:var(--surface2)!important; border-radius:4px!important; height:6px!important; }}
+    div[data-testid="stProgressBar"]>div>div {{ background:linear-gradient(90deg,{C['accent_dim']},{C['accent']})!important; border-radius:4px!important; }}
 
-        .hero {{
-            background: linear-gradient(135deg, #0a0a0a 0%, #111 50%, #0a0a0a 100%);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 2rem 2.5rem;
-            margin-bottom: 1.5rem;
-            position: relative;
-            overflow: hidden;
-        }}
-        .hero::before {{
-            content: '';
-            position: absolute;
-            top: -50%; right: -20%;
-            width: 400px; height: 400px;
-            background: radial-gradient(circle, rgba(0,255,136,0.08) 0%, transparent 70%);
-            pointer-events: none;
-        }}
-        .hero-title {{
-            font-size: 2.8rem;
-            font-weight: 700;
-            letter-spacing: -2px;
-            color: white;
-            margin: 0;
-            line-height: 1.1;
-        }}
-        .hero-sub {{
-            color: var(--neon);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.75rem;
-            letter-spacing: 4px;
-            text-transform: uppercase;
-            margin-top: 0.5rem;
-        }}
-        .hero-badge {{
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: rgba(0,255,136,0.1);
-            border: 1px solid var(--neon);
-            color: var(--neon);
-            padding: 6px 14px;
-            border-radius: 50px;
-            font-size: 0.7rem;
-            font-weight: 600;
-            letter-spacing: 1px;
-            margin-top: 1rem;
-        }}
-        .pulse-dot {{
-            width: 8px; height: 8px;
-            background: var(--neon);
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }}
-        @keyframes pulse {{
-            0%, 100% {{ opacity: 1; box-shadow: 0 0 0 0 rgba(0,255,136,0.5); }}
-            50% {{ opacity: 0.7; box-shadow: 0 0 0 8px rgba(0,255,136,0); }}
-        }}
+    .terminal-wrap {{ border:1px solid var(--border); border-radius:12px; overflow:hidden; background:#060608; }}
+    .terminal-bar {{ display:flex; align-items:center; gap:7px; padding:10px 14px; background:var(--surface2); border-bottom:1px solid var(--border); }}
+    .tb-dot {{ width:10px; height:10px; border-radius:50%; }}
+    .tb-dot.r {{ background:#ef4444; }} .tb-dot.y {{ background:#f59e0b; }} .tb-dot.g {{ background:#10b981; }}
+    .tb-title {{ margin-left:8px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); }}
+    .log-body {{ padding:16px; font-family:'IBM Plex Mono',monospace; font-size:12px; line-height:1.75; height:420px; overflow-y:auto; color:var(--muted); }}
+    .log-body.tall {{ height:520px; }}
+    .log-body::-webkit-scrollbar {{ width:5px; }}
+    .log-body::-webkit-scrollbar-thumb {{ background:#2a2a35; border-radius:3px; }}
+    .log-ok {{ color:{C['accent']}; }} .log-warn {{ color:{C['warn']}; }} .log-err {{ color:{C['error']}; }}
+    .log-cmd {{ color:#60a5fa; }} .log-out {{ color:#cbd5e1; }}
 
-        [data-testid="stMetric"] {{
-            background: linear-gradient(160deg, #0f0f0f, #080808);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 1.25rem !important;
-            transition: border-color 0.3s, transform 0.2s;
-        }}
-        [data-testid="stMetric"]:hover {{
-            border-color: rgba(0,255,136,0.3);
-            transform: translateY(-2px);
-        }}
-        [data-testid="stMetricLabel"] {{
-            color: var(--muted) !important;
-            font-size: 0.7rem !important;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-        }}
-        [data-testid="stMetricValue"] {{
-            color: white !important;
-            font-weight: 700 !important;
-        }}
+    .section-head {{ font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin:0 0 16px; padding-bottom:10px; border-bottom:1px solid var(--border); }}
+    .empty-box {{ text-align:center; padding:48px 32px; border:1px dashed var(--border); border-radius:14px; color:var(--muted); background:var(--surface); }}
+    .empty-box strong {{ color:var(--text2); display:block; margin-bottom:8px; font-size:15px; }}
+    .empty-box code {{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--accent); background:{C['accent_glow']}; padding:4px 10px; border-radius:6px; }}
 
-        .node-card {{
-            background: linear-gradient(160deg, #0f0f0f 0%, #080808 100%);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            transition: border-color 0.3s, box-shadow 0.3s;
-        }}
-        .node-card:hover {{
-            border-color: rgba(0,255,136,0.25);
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-        }}
-        .node-header {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.25rem;
-        }}
-        .node-host {{
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: white;
-        }}
-        .node-id {{
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.65rem;
-            color: var(--muted);
-            background: #111;
-            padding: 4px 10px;
-            border-radius: 6px;
-        }}
-        .status-pill {{
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(0,255,136,0.12);
-            color: var(--neon);
-            padding: 4px 12px;
-            border-radius: 50px;
-            font-size: 0.65rem;
-            font-weight: 700;
-            letter-spacing: 1px;
-            border: 1px solid rgba(0,255,136,0.3);
-            margin-right: 10px;
-        }}
-        .status-pill .dot {{
-            width: 6px; height: 6px;
-            background: var(--neon);
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }}
+    .admin-warn {{ background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.35); border-radius:10px; padding:16px 20px; margin-bottom:20px; }}
+    .admin-warn-title {{ font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:{C['error']}; margin-bottom:8px; }}
+    .admin-warn-text {{ font-size:13px; color:var(--text2); line-height:1.6; }}
 
-        .metric-grid {{
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
-        }}
-        .metric-item {{ text-align: center; }}
-        .metric-label {{
-            font-size: 0.65rem;
-            color: var(--muted);
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            margin-bottom: 4px;
-        }}
-        .metric-value {{
-            font-size: 1.6rem;
-            font-weight: 700;
-            color: var(--neon);
-            line-height: 1;
-        }}
-        .metric-bar {{
-            height: 4px;
-            background: #1a1a1a;
-            border-radius: 2px;
-            margin-top: 8px;
-            overflow: hidden;
-        }}
-        .metric-bar-fill {{
-            height: 100%;
-            background: linear-gradient(90deg, var(--neon-dim), var(--neon));
-            border-radius: 2px;
-            transition: width 0.5s ease;
-        }}
+    .steps {{ display:flex; margin-bottom:32px; background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; }}
+    .step {{ flex:1; text-align:center; padding:20px 12px; border-right:1px solid var(--border); }}
+    .step:last-child {{ border-right:none; }}
+    .step.active {{ background:{C['accent_glow']}; }}
+    .step.done {{ background:rgba(16,185,129,.06); }}
+    .step-num {{ width:32px; height:32px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; border:2px solid var(--border); color:var(--muted); margin-bottom:8px; }}
+    .step.active .step-num {{ border-color:var(--accent); color:var(--accent); background:{C['accent_glow']}; }}
+    .step.done .step-num {{ border-color:var(--accent); background:var(--accent); color:#000; }}
+    .step-lbl {{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }}
+    .step.active .step-lbl {{ color:var(--accent); }}
+    .link-strip {{ display:flex; align-items:center; gap:12px; background:{C['accent_glow']}; border:1px solid {C['border_hi']}; border-radius:10px; padding:14px 20px; margin-bottom:20px; font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--accent); }}
 
-        .log-terminal {{
-            background: #000;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1rem;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.72rem;
-            line-height: 1.7;
-            height: 420px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-        }}
-        .log-terminal::-webkit-scrollbar {{ width: 6px; }}
-        .log-terminal::-webkit-scrollbar-thumb {{
-            background: var(--border);
-            border-radius: 3px;
-        }}
-        .log-ok {{ color: var(--neon); }}
-        .log-warn {{ color: {WARN}; }}
-        .log-err {{ color: {ERROR}; }}
-        .log-muted {{ color: var(--muted); }}
+    .stButton>button {{ background:transparent!important; border:1px solid var(--border)!important; color:var(--text2)!important; font-weight:500!important; border-radius:8px!important; height:42px!important; font-size:13px!important; }}
+    .stButton>button:hover {{ border-color:var(--accent)!important; color:var(--accent)!important; background:{C['accent_glow']}!important; }}
+    [data-testid="stRadio"] label,[data-testid="stTextInput"] label,[data-testid="stTextArea"] label,[data-testid="stSelectbox"] label {{ font-size:13px!important; color:var(--text2)!important; }}
+    [data-testid="stTextInput"] input,[data-testid="stTextArea"] textarea {{ background:var(--surface2)!important; border:1px solid var(--border)!important; border-radius:8px!important; color:var(--text)!important; font-family:'IBM Plex Mono',monospace!important; }}
 
-        .section-title {{
-            font-size: 0.75rem;
-            font-weight: 600;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            color: var(--muted);
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--border);
-        }}
-
-        .empty-state {{
-            text-align: center;
-            padding: 3rem 2rem;
-            border: 1px dashed var(--border);
-            border-radius: 14px;
-            color: var(--muted);
-        }}
-        .empty-icon {{
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            opacity: 0.4;
-        }}
-
-        .step-track {{
-            display: flex;
-            gap: 0;
-            margin-bottom: 2rem;
-        }}
-        .step-item {{
-            flex: 1;
-            text-align: center;
-            padding: 1rem;
-            position: relative;
-        }}
-        .step-num {{
-            width: 36px; height: 36px;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 0.85rem;
-            margin-bottom: 0.5rem;
-            border: 2px solid var(--border);
-            color: var(--muted);
-            transition: all 0.3s;
-        }}
-        .step-item.active .step-num {{
-            border-color: var(--neon);
-            background: rgba(0,255,136,0.15);
-            color: var(--neon);
-            box-shadow: 0 0 20px rgba(0,255,136,0.2);
-        }}
-        .step-item.done .step-num {{
-            border-color: var(--neon);
-            background: var(--neon);
-            color: #000;
-        }}
-        .step-label {{
-            font-size: 0.7rem;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: var(--muted);
-        }}
-        .step-item.active .step-label {{ color: var(--neon); }}
-
-        .link-banner {{
-            background: linear-gradient(90deg, rgba(0,255,136,0.1), rgba(0,255,136,0.03));
-            border: 1px solid rgba(0,255,136,0.3);
-            border-radius: 12px;
-            padding: 1rem 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 1.5rem;
-        }}
-        .link-banner .icon {{ font-size: 1.5rem; }}
-        .link-banner .text {{
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            color: var(--neon);
-        }}
-
-        .stButton>button {{
-            background: transparent !important;
-            border: 1px solid var(--neon) !important;
-            color: var(--neon) !important;
-            font-weight: 600 !important;
-            border-radius: 10px !important;
-            height: 3rem !important;
-            letter-spacing: 1px !important;
-            transition: all 0.3s !important;
-        }}
-        .stButton>button:hover {{
-            background: var(--neon) !important;
-            color: #000 !important;
-            box-shadow: 0 0 24px rgba(0,255,136,0.4) !important;
-        }}
-
-        .sidebar-brand {{
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: white;
-            margin-bottom: 0.25rem;
-        }}
-        .sidebar-version {{
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.65rem;
-            color: var(--neon);
-            letter-spacing: 2px;
-        }}
-        </style>
+    .sb-brand {{ font-size:20px; font-weight:700; color:var(--text); margin-bottom:2px; }}
+    .sb-ver {{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--accent); letter-spacing:.06em; }}
+    .sb-block {{ background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:12px; }}
+    .sb-block-title {{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }}
+    [data-testid="stTabs"] button {{ font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.06em; }}
+    </style>
     """, unsafe_allow_html=True)
 
 
@@ -380,90 +145,171 @@ def get_local_ip() -> str:
         return "127.0.0.1"
 
 
-def build_chart(values, height=140, show_axes=False):
+def get_system_meta() -> dict:
+    return {
+        "os": platform.system(),
+        "release": platform.release(),
+        "arch": platform.machine(),
+        "shell": os.environ.get("COMSPEC", "cmd.exe") if sys.platform == "win32" else os.environ.get("SHELL", "/bin/sh"),
+    }
+
+
+def run_shell_command(command: str) -> dict:
+    shell_exe = os.environ.get("COMSPEC", "cmd.exe") if sys.platform == "win32" else "/bin/sh"
+    try:
+        proc = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=CMD_TIMEOUT_SEC,
+            executable=shell_exe,
+            cwd=os.path.expanduser("~"),
+        )
+        return {
+            "stdout": proc.stdout or "",
+            "stderr": proc.stderr or "",
+            "exit_code": proc.returncode,
+            "os": platform.system(),
+            "shell": shell_exe,
+            "error": None,
+        }
+    except subprocess.TimeoutExpired:
+        return {"stdout": "", "stderr": f"Timeout ({CMD_TIMEOUT_SEC}s)", "exit_code": -1, "os": platform.system(), "shell": shell_exe, "error": "timeout"}
+    except Exception as e:
+        return {"stdout": "", "stderr": str(e), "exit_code": -1, "os": platform.system(), "shell": shell_exe, "error": str(e)}
+
+
+def build_chart(values, height=180, title="CPU Load — 60s"):
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        y=values,
-        fill="tozeroy",
-        fillcolor="rgba(0,255,136,0.12)",
-        line=dict(color=NEON, width=2, shape="spline"),
-        mode="lines",
+        x=list(range(len(values))), y=list(values), fill="tozeroy",
+        fillcolor="rgba(16,185,129,0.1)", line=dict(color=C["accent"], width=2, shape="spline"), mode="lines",
     ))
-    layout = dict(
+    fig.update_layout(
         height=height,
-        margin=dict(l=0, r=0, t=0, b=0),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(visible=False),
-        yaxis=dict(
-            visible=show_axes,
-            gridcolor="#1a1a1a",
-            tickfont=dict(color=MUTED, size=10),
-            range=[0, 100] if show_axes else None,
-        ),
+        title=dict(text=title, font=dict(size=11, color=C["muted"], family="IBM Plex Mono"), x=0, xanchor="left"),
+        margin=dict(l=36, r=12, t=32, b=28),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor=C["surface2"],
+        font=dict(family="IBM Plex Mono", color=C["muted"], size=10),
+        xaxis=dict(showgrid=False, showticklabels=False, zeroline=False),
+        yaxis=dict(gridcolor="rgba(255,255,255,0.04)", range=[0, 100], ticksuffix="%", nticks=5, zeroline=False),
         showlegend=False,
     )
-    fig.update_layout(**layout)
+    fig.update_xaxes(showline=False)
+    fig.update_yaxes(showline=False)
     return fig
 
 
-def render_metric_bar(label, value, unit="%"):
-    pct = min(max(float(value), 0), 100)
-    return f"""
-        <div class="metric-item">
-            <div class="metric-label">{label}</div>
-            <div class="metric-value">{value}{unit}</div>
-            <div class="metric-bar">
-                <div class="metric-bar-fill" style="width:{pct}%"></div>
-            </div>
-        </div>
-    """
-
-
 def format_log_line(line: str) -> str:
-    if "ERRORE" in line or "INVALIDA" in line or "negato" in line.lower():
-        return f'<span class="log-err">{line}</span>'
-    if "HANDSHAKE" in line or "OK" in line:
-        return f'<span class="log-ok">{line}</span>'
-    if "WARN" in line:
-        return f'<span class="log-warn">{line}</span>'
-    return f'<span class="log-muted">{line}</span>'
+    if any(k in line for k in ("ERRORE", "INVALIDA", "negato", "RIFIUTATO")):
+        return f'<span class="log-err">{html.escape(line)}</span>'
+    if "HANDSHAKE" in line or "EXEC OK" in line:
+        return f'<span class="log-ok">{html.escape(line)}</span>'
+    if "EXEC" in line or "WARN" in line:
+        return f'<span class="log-warn">{html.escape(line)}</span>'
+    return html.escape(line)
+
+
+def format_terminal_entry(entry: dict) -> str:
+    ts = html.escape(entry.get("ts", ""))
+    host = html.escape(entry.get("host", "?"))
+    cmd = html.escape(entry.get("command", ""))
+    exit_code = entry.get("exit_code", "?")
+    stdout = html.escape(entry.get("stdout", "") or "")
+    stderr = html.escape(entry.get("stderr", "") or "")
+    block = f'<span class="log-cmd">[{ts}] {host} $ {cmd}</span><br>'
+    block += f'<span class="log-muted">exit {exit_code}</span><br>'
+    if stdout:
+        block += f'<span class="log-out">{stdout.replace(chr(10), "<br>")}</span><br>'
+    if stderr:
+        block += f'<span class="log-err">{stderr.replace(chr(10), "<br>")}</span><br>'
+    block += '<br>'
+    return block
 
 
 def inject_refresh():
-    st.markdown(
-        f"<script>setTimeout(function(){{ window.location.reload(); }}, {REFRESH_MS});</script>",
-        unsafe_allow_html=True,
-    )
+    st.markdown(f"<script>setTimeout(function(){{ window.location.reload(); }}, {REFRESH_MS});</script>", unsafe_allow_html=True)
+
+
+def render_hero(title: str, subtitle: str, status: str = ""):
+    status_html = f'<div class="hero-status"><span class="status-dot"></span>{status}</div>' if status else ""
+    st.markdown(f"""
+    <div class="hero">
+        <div>
+            <div class="hero-eyebrow">Home Lab &amp; Datacenter Control Plane</div>
+            <div class="hero-title">{title}</div>
+            <div class="hero-meta">{subtitle}</div>
+        </div>
+        {status_html}
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def render_sidebar(mode: str):
     with st.sidebar:
-        st.markdown(
-            f"<div class='sidebar-brand'>{CODENAME}</div>"
-            f"<div class='sidebar-version'>{VERSION} · {mode.upper()}</div>",
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"<div class='sb-brand'>{CODENAME}</div><div class='sb-ver'>{VERSION} / {mode.upper()}</div>", unsafe_allow_html=True)
         st.divider()
-        st.markdown("**Porte di rete**")
-        st.code(f"TCP  {TCP_PORT}  (dati)\nUDP  {UDP_PORT}  (beacon)", language=None)
-        st.markdown("**Sicurezza**")
-        st.caption("HMAC-SHA256 · timing-safe verify")
-        st.divider()
-        st.markdown("**Comandi**")
+        st.markdown(f"""
+        <div class="sb-block"><div class="sb-block-title">Network</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:{C['text2']}">TCP {TCP_PORT} data<br>UDP {UDP_PORT} beacon</div></div>
+        <div class="sb-block"><div class="sb-block-title">Security</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:{C['text2']}">HMAC-SHA256<br>Admin exec gate</div></div>
+        <div class="sb-block"><div class="sb-block-title">Targets</div>
+        <div style="font-size:12px;color:{C['text2']}">Home lab, ufficio,<br>rack datacenter</div></div>
+        """, unsafe_allow_html=True)
+        st.markdown("**Launch**")
         st.code("streamlit run main.py -- master", language="bash")
         st.code("streamlit run main.py -- worker", language="bash")
+
+
+def render_node_card(nid: str, host: str, ip: str, stats: dict, history: list, meta: dict):
+    cpu, ram, disk = float(stats.get("cpu", 0)), float(stats.get("ram", 0)), float(stats.get("disk", 0))
+    threads = stats.get("threads", 0)
+    os_label = f"{meta.get('os', '?')} {meta.get('release', '')}".strip()
+
+    with st.container(border=True):
+        st.markdown(f"""
+        <div class="node-head">
+            <div class="node-head-left">
+                <span class="node-badge">ONLINE</span>
+                <span class="node-name">{html.escape(host)}</span>
+                <span class="node-os">{html.escape(os_label)}</span>
+            </div>
+            <span class="node-id">{html.escape(nid)}</span>
+        </div>
+        """, unsafe_allow_html=True)
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.markdown(f'<p class="stat-label">CPU</p><p class="stat-num accent">{cpu:.1f}%</p>', unsafe_allow_html=True)
+            st.progress(min(cpu / 100, 1.0))
+        with c2:
+            st.markdown(f'<p class="stat-label">RAM</p><p class="stat-num">{ram:.1f}%</p>', unsafe_allow_html=True)
+            st.progress(min(ram / 100, 1.0))
+        with c3:
+            st.markdown(f'<p class="stat-label">Disco</p><p class="stat-num">{disk:.1f}%</p>', unsafe_allow_html=True)
+            st.progress(min(disk / 100, 1.0))
+        with c4:
+            st.markdown(
+                f'<p class="stat-label">Rete</p><p class="stat-sub">{html.escape(ip)}</p>'
+                f'<p class="stat-label" style="margin-top:12px">Threads</p><p class="stat-num" style="font-size:18px">{threads}</p>',
+                unsafe_allow_html=True,
+            )
+        if history:
+            st.plotly_chart(build_chart(history, title=f"{host} — CPU 60s"), width="stretch", key=f"chart_{nid}")
 
 
 class HydraMaster:
     def __init__(self):
         self.nodes = {}
-        self.events = deque(maxlen=200)
+        self.events = deque(maxlen=300)
+        self.terminal_log = deque(maxlen=200)
+        self.exec_results = {}
+        self.pending_exec = {}
         self.lock = threading.Lock()
         self.active = True
         self._socket_ok = False
         self.started_at = datetime.now()
-
         self.ctx = zmq.Context()
         self.socket = self.ctx.socket(zmq.ROUTER)
         self.socket.setsockopt(zmq.LINGER, 0)
@@ -505,14 +351,20 @@ class HydraMaster:
                     if len(parts) < 4:
                         continue
                     identity, _, payload, sig = parts[0], parts[1], parts[2], parts[3]
-                    if verify_signature(payload, sig):
-                        self._sync_node(identity, json.loads(payload.decode("utf-8")))
-                    else:
+                    if not verify_signature(payload, sig):
                         self.events.appendleft(f"[{self._ts()}] FIRMA INVALIDA — pacchetto scartato")
+                        continue
+                    data = json.loads(payload.decode("utf-8"))
+                    msg_type = data.get("t", "tel")
+                    if msg_type == "tel":
+                        self._sync_node(identity, data)
+                    elif msg_type == "exec_result":
+                        self._store_exec_result(data)
             except zmq.Again:
                 pass
             except Exception as e:
                 self.events.appendleft(f"[{self._ts()}] Errore collector: {e}")
+            self._expire_pending()
 
     def _sync_node(self, identity, data):
         nid = data.get("id", "UNKNOWN")
@@ -523,23 +375,97 @@ class HydraMaster:
                 "ip": data.get("ip", "?"),
                 "stats": data.get("s", {}),
                 "history": data.get("h", []),
+                "meta": data.get("meta", {}),
+                "identity": identity,
                 "last": time.time(),
             }
             if is_new:
+                os_info = data.get("meta", {}).get("os", "?")
                 self.events.appendleft(
-                    f"[{self._ts()}] HANDSHAKE OK: {data.get('host', '?')} ({nid}) @ {data.get('ip', '?')}"
+                    f"[{self._ts()}] HANDSHAKE OK: {data.get('host', '?')} ({nid}) @ {data.get('ip', '?')} [{os_info}]"
                 )
+
+    def _store_exec_result(self, data):
+        cmd_id = data.get("cmd_id", "")
+        entry = {
+            "cmd_id": cmd_id,
+            "node_id": data.get("id", "?"),
+            "host": data.get("host", "?"),
+            "command": data.get("command", ""),
+            "stdout": data.get("stdout", ""),
+            "stderr": data.get("stderr", ""),
+            "exit_code": data.get("exit_code", -1),
+            "os": data.get("os", "?"),
+            "ts": self._ts(),
+        }
+        with self.lock:
+            self.exec_results[cmd_id] = entry
+            self.terminal_log.appendleft(entry)
+            self.pending_exec.pop(cmd_id, None)
+        self.events.appendleft(
+            f"[{self._ts()}] EXEC OK: {entry['host']} exit={entry['exit_code']} cmd={entry['command'][:60]}"
+        )
+
+    def _expire_pending(self):
+        now = time.time()
+        with self.lock:
+            expired = [k for k, v in self.pending_exec.items() if now - v["sent_at"] > EXEC_RESULT_TTL]
+            for cmd_id in expired:
+                p = self.pending_exec.pop(cmd_id)
+                self.events.appendleft(f"[{self._ts()}] EXEC TIMEOUT: {p['host']} cmd={p['command'][:60]}")
+
+    def send_command(self, node_id: str, command: str):
+        command = command.strip()
+        if not command or len(command) > CMD_MAX_LEN:
+            return None
+        cmd_id = uuid.uuid4().hex[:12]
+        with self.lock:
+            node = self.nodes.get(node_id)
+            if not node or "identity" not in node:
+                return None
+            identity = node["identity"]
+            host = node["host"]
+        payload_obj = {"t": "exec", "cmd_id": cmd_id, "command": command}
+        raw = json.dumps(payload_obj).encode("utf-8")
+        try:
+            self.socket.send_multipart([identity, b"", raw, make_signature(raw)])
+        except Exception as e:
+            self.events.appendleft(f"[{self._ts()}] EXEC SEND ERR: {e}")
+            return None
+        with self.lock:
+            self.pending_exec[cmd_id] = {"node_id": node_id, "host": host, "command": command, "sent_at": time.time()}
+        self.events.appendleft(f"[{self._ts()}] EXEC SENT: {host} ({node_id}) cmd={command[:60]}")
+        return cmd_id
+
+    def send_command_all(self, command: str) -> list[str]:
+        active = self.get_active_nodes()
+        return [cid for nid in active if (cid := self.send_command(nid, command))]
 
     def get_active_nodes(self):
         now = time.time()
         with self.lock:
-            return {k: v for k, v in self.nodes.items() if now - v["last"] < NODE_TIMEOUT_SEC}
+            return {k: dict(v) for k, v in self.nodes.items() if now - v["last"] < NODE_TIMEOUT_SEC}
+
+    def get_terminal_log(self) -> list:
+        with self.lock:
+            return list(self.terminal_log)
 
     def uptime(self) -> str:
         delta = datetime.now() - self.started_at
         h, rem = divmod(int(delta.total_seconds()), 3600)
         m, s = divmod(rem, 60)
         return f"{h:02d}:{m:02d}:{s:02d}"
+
+    def shutdown(self):
+        self.active = False
+        try:
+            self.socket.close()
+        except Exception:
+            pass
+        try:
+            self.ctx.term()
+        except Exception:
+            pass
 
 
 class HydraWorker:
@@ -550,16 +476,18 @@ class HydraWorker:
         self.sock = self.ctx.socket(zmq.DEALER)
         self.sock.setsockopt(zmq.LINGER, 0)
         self.sock.setsockopt_string(zmq.IDENTITY, self.id)
+        self.sock_lock = threading.Lock()
         self.cpu_history = deque([0] * 60, maxlen=60)
         self.connected = False
         self.error_msg = ""
         self.last_stats = {"cpu": 0, "ram": 0, "disk": 0, "threads": 0}
+        self.meta = get_system_meta()
 
     def engage_link(self) -> bool:
         try:
             self.sock.connect(f"tcp://{self.target}:{TCP_PORT}")
             self.connected = True
-            threading.Thread(target=self._telemetry_stream, daemon=True).start()
+            threading.Thread(target=self._worker_loop, daemon=True).start()
             return True
         except Exception as e:
             self.error_msg = str(e)
@@ -573,148 +501,237 @@ class HydraWorker:
         except Exception:
             pass
 
-    def _telemetry_stream(self):
+    def _send_signed(self, payload_obj: dict):
+        raw = json.dumps(payload_obj).encode("utf-8")
+        with self.sock_lock:
+            self.sock.send_multipart([b"", raw, make_signature(raw)])
+
+    def _handle_exec(self, data: dict):
+        command = str(data.get("command", "")).strip()[:CMD_MAX_LEN]
+        cmd_id = data.get("cmd_id", "")
+        if not command or not cmd_id:
+            return
+        result = run_shell_command(command)
+        self._send_signed({
+            "t": "exec_result",
+            "cmd_id": cmd_id,
+            "id": self.id,
+            "host": socket.gethostname(),
+            "command": command,
+            "stdout": result["stdout"][:65536],
+            "stderr": result["stderr"][:65536],
+            "exit_code": result["exit_code"],
+            "os": result["os"],
+        })
+
+    def _worker_loop(self):
         psutil.cpu_percent(interval=None)
+        disk_path = "C:\\" if sys.platform == "win32" else "/"
+        last_telemetry = 0.0
         while self.connected:
             try:
-                stats = {
-                    "cpu": psutil.cpu_percent(interval=None),
-                    "ram": psutil.virtual_memory().percent,
-                    "disk": psutil.disk_usage("/").percent if sys.platform != "win32" else psutil.disk_usage("C:\\").percent,
-                    "threads": threading.active_count(),
-                }
-                self.last_stats = stats
-                self.cpu_history.append(stats["cpu"])
-                payload_obj = {
-                    "id": self.id,
-                    "host": socket.gethostname(),
-                    "ip": get_local_ip(),
-                    "s": stats,
-                    "h": list(self.cpu_history),
-                }
-                raw_data = json.dumps(payload_obj).encode("utf-8")
-                self.sock.send_multipart([b"", raw_data, make_signature(raw_data)])
+                with self.sock_lock:
+                    events = self.sock.poll(100, zmq.POLLIN)
+                if events:
+                    with self.sock_lock:
+                        parts = self.sock.recv_multipart(flags=zmq.NOBLOCK)
+                    if len(parts) >= 3:
+                        payload, sig = parts[-2], parts[-1]
+                        if verify_signature(payload, sig):
+                            msg = json.loads(payload.decode("utf-8"))
+                            if msg.get("t") == "exec":
+                                self._handle_exec(msg)
+                now = time.time()
+                if now - last_telemetry >= 1.0:
+                    stats = {
+                        "cpu": psutil.cpu_percent(interval=None),
+                        "ram": psutil.virtual_memory().percent,
+                        "disk": psutil.disk_usage(disk_path).percent,
+                        "threads": threading.active_count(),
+                    }
+                    self.last_stats = stats
+                    self.cpu_history.append(stats["cpu"])
+                    self._send_signed({
+                        "t": "tel",
+                        "id": self.id,
+                        "host": socket.gethostname(),
+                        "ip": get_local_ip(),
+                        "s": stats,
+                        "h": list(self.cpu_history),
+                        "meta": self.meta,
+                    })
+                    last_telemetry = now
             except zmq.ZMQError:
                 self.connected = False
                 break
             except Exception:
                 pass
-            time.sleep(1)
 
 
-def render_hero(title: str, subtitle: str, badge: str = ""):
-    badge_html = f"<div class='hero-badge'><span class='pulse-dot'></span>{badge}</div>" if badge else ""
-    st.markdown(f"""
-        <div class="hero">
-            <div class="hero-title">{title}</div>
-            <div class="hero-sub">{subtitle}</div>
-            {badge_html}
+def render_monitor_tab(m: HydraMaster, active: dict):
+    col_nodes, col_log = st.columns([1.6, 1])
+    with col_nodes:
+        st.markdown("<div class='section-head'>Topologia nodi</div>", unsafe_allow_html=True)
+        if not active:
+            st.markdown("""
+            <div class="empty-box"><strong>Nessun worker connesso</strong>
+            Avvia un worker su ogni macchina target<br><br>
+            <code>streamlit run main.py -- worker</code></div>
+            """, unsafe_allow_html=True)
+        for nid, d in active.items():
+            render_node_card(nid, d["host"], d["ip"], d["stats"], d["history"], d.get("meta", {}))
+    with col_log:
+        st.markdown("<div class='section-head'>Log eventi</div>", unsafe_allow_html=True)
+        lines = [format_log_line(l) for l in list(m.events)] if m.events else ["In attesa di segnali..."]
+        st.markdown(f"""
+        <div class="terminal-wrap"><div class="terminal-bar">
+        <span class="tb-dot r"></span><span class="tb-dot y"></span><span class="tb-dot g"></span>
+        <span class="tb-title">hydra-events.log</span></div>
+        <div class="log-body">{"<br>".join(lines)}</div></div>
+        """, unsafe_allow_html=True)
+
+
+def render_terminal_tab(m: HydraMaster, active: dict):
+    st.markdown("""
+    <div class="admin-warn">
+        <div class="admin-warn-title">Privilegi amministratore richiesti</div>
+        <div class="admin-warn-text">
+            I comandi remoti vengono eseguiti con i privilegi dell'utente che avvia il Worker
+            (tipicamente amministratore/root). Usare solo su infrastrutture di proprieta.
+            Ogni comando e firmato HMAC-SHA256 e richiede la chiave admin.
         </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if "admin_unlocked" not in st.session_state:
+        st.session_state.admin_unlocked = False
+    if "term_history" not in st.session_state:
+        st.session_state.term_history = []
+
+    if not st.session_state.admin_unlocked:
+        st.markdown("<div class='section-head'>Sblocco terminal admin</div>", unsafe_allow_html=True)
+        admin_key = st.text_input("Chiave admin", type="password", key="admin_key_input")
+        confirm = st.checkbox("Confermo di eseguire comandi con privilegi amministratore su nodi remoti")
+        if st.button("Sblocca terminal", width="stretch"):
+            if admin_key.encode() == ADMIN_KEY and confirm:
+                st.session_state.admin_unlocked = True
+                m.events.appendleft(f"[{m._ts()}] Terminal admin sbloccato")
+                st.rerun()
+            else:
+                st.error("Chiave admin non valida o conferma mancante.")
+        return
+
+    if not active:
+        st.info("Nessun nodo online. Connetti almeno un Worker per usare il terminal remoto.")
+        return
+
+    st.markdown("<div class='section-head'>Terminal remoto</div>", unsafe_allow_html=True)
+
+    node_options = {f"{d['host']} ({nid})": nid for nid, d in active.items()}
+    labels = ["Tutti i nodi"] + list(node_options.keys())
+    target_label = st.selectbox("Target", labels)
+    command = st.text_area(
+        "Comando shell",
+        placeholder="Windows: dir & echo ok\nLinux/macOS: ls -la && uname -a",
+        height=100,
+    )
+
+    os_hints = st.expander("Comandi cross-platform")
+    with os_hints:
+        st.markdown("""
+        | Azione | Windows | Linux / macOS |
+        |:---|:---|:---|
+        | Lista file | `dir` | `ls -la` |
+        | Hostname | `hostname` | `hostname` |
+        | Utente | `whoami` | `whoami` |
+        | Uptime | `systeminfo` | `uptime` |
+        | Processi | `tasklist` | `ps aux` |
+        | Disco | `wmic logicaldisk get size,freespace,caption` | `df -h` |
+        | Rete | `ipconfig` | `ip addr` o `ifconfig` |
+        """)
+
+    bc1, bc2, bc3 = st.columns([2, 2, 1])
+    with bc1:
+        run_single = st.button("Esegui", width="stretch")
+    with bc2:
+        run_all = st.button("Esegui su tutti", width="stretch")
+    with bc3:
+        if st.button("Lock", width="stretch"):
+            st.session_state.admin_unlocked = False
+            st.rerun()
+
+    if run_single and command.strip():
+        if target_label == "Tutti i nodi":
+            m.send_command_all(command.strip())
+        else:
+            m.send_command(node_options[target_label], command.strip())
+        time.sleep(0.3)
+
+    if run_all and command.strip():
+        m.send_command_all(command.strip())
+        time.sleep(0.3)
+
+    entries = m.get_terminal_log()
+    if entries:
+        term_html = "".join(format_terminal_entry(e) for e in entries)
+    else:
+        term_html = '<span class="log-muted">Nessun comando eseguito.</span>'
+
+    st.markdown(f"""
+    <div class="terminal-wrap"><div class="terminal-bar">
+    <span class="tb-dot r"></span><span class="tb-dot y"></span><span class="tb-dot g"></span>
+    <span class="tb-title">hydra-remote.shell</span></div>
+    <div class="log-body tall">{term_html}</div></div>
     """, unsafe_allow_html=True)
 
 
 def render_master(m: HydraMaster):
-    render_hero(
-        "HYDRA OVERLORD",
-        f"{VERSION} · TCP:{TCP_PORT} · UDP:{UDP_PORT}",
-        "SISTEMA ATTIVO",
-    )
-
+    render_hero("HYDRA OVERLORD", f"{VERSION}  /  TCP {TCP_PORT}  /  UDP {UDP_PORT}", "ACTIVE")
     if not m._socket_ok:
         st.error(f"Impossibile aprire la porta {TCP_PORT}. Chiudi altri processi e riavvia.")
         return
 
     active = m.get_active_nodes()
     avg_cpu = round(sum(n["stats"].get("cpu", 0) for n in active.values()) / max(len(active), 1), 1)
+    avg_ram = round(sum(n["stats"].get("ram", 0) for n in active.values()) / max(len(active), 1), 1)
 
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("NODI ONLINE", len(active))
-    c2.metric("CPU MEDIA", f"{avg_cpu}%")
-    c3.metric("UPTIME", m.uptime())
-    c4.metric("CRITTOGRAFIA", "HMAC-256")
-    c5.metric("BEACON UDP", "ON")
+    r1 = st.columns(5)
+    r1[0].metric("Nodi", len(active))
+    r1[1].metric("CPU media", f"{avg_cpu}%")
+    r1[2].metric("RAM media", f"{avg_ram}%")
+    r1[3].metric("Uptime", m.uptime())
+    r1[4].metric("Remote exec", "ON")
 
-    col_left, col_right = st.columns([2, 1])
-
-    with col_left:
-        st.markdown("<div class='section-title'>Topologia Nodi</div>", unsafe_allow_html=True)
-        if not active:
-            st.markdown("""
-                <div class="empty-state">
-                    <div class="empty-icon">📡</div>
-                    <div><b>Nessun worker connesso</b></div>
-                    <div style="margin-top:8px;font-size:0.85rem;">
-                        Avvia un worker con<br>
-                        <code>streamlit run main.py -- worker</code>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-        for nid, d in active.items():
-            stats = d["stats"]
-            st.markdown(f"""
-                <div class="node-card">
-                    <div class="node-header">
-                        <div>
-                            <span class="status-pill"><span class="dot"></span>ONLINE</span>
-                            <span class="node-host">{d['host']}</span>
-                        </div>
-                        <span class="node-id">{nid}</span>
-                    </div>
-                    <div class="metric-grid">
-                        {render_metric_bar("CPU", stats.get('cpu', 0))}
-                        {render_metric_bar("RAM", stats.get('ram', 0))}
-                        {render_metric_bar("DISCO", stats.get('disk', 0))}
-                        <div class="metric-item">
-                            <div class="metric-label">IP · THREADS</div>
-                            <div class="metric-value" style="font-size:1rem;color:white;">{d['ip']}</div>
-                            <div style="color:var(--neon);font-size:0.85rem;margin-top:4px;">{stats.get('threads', 0)} thread</div>
-                        </div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-            if d["history"]:
-                st.plotly_chart(build_chart(d["history"]), use_container_width=True, key=f"chart_{nid}")
-
-    with col_right:
-        st.markdown("<div class='section-title'>Log Eventi</div>", unsafe_allow_html=True)
-        lines = [format_log_line(l) for l in list(m.events)] if m.events else ['<span class="log-muted">In attesa di segnali...</span>']
-        st.markdown(f"<div class='log-terminal'>{'<br>'.join(lines)}</div>", unsafe_allow_html=True)
-        if st.button("Aggiorna ora", key="refresh_log"):
-            st.rerun()
+    tab_mon, tab_term = st.tabs(["Monitoraggio", "Terminal remoto"])
+    with tab_mon:
+        render_monitor_tab(m, active)
+    with tab_term:
+        render_terminal_tab(m, active)
 
     inject_refresh()
 
 
 def render_stepper(current: int):
-    steps = [("1", "Scoperta"), ("2", "Autenticazione"), ("3", "Streaming")]
-    html = '<div class="step-track">'
-    for i, (num, label) in enumerate(steps, 1):
+    steps = ["Scoperta", "Autenticazione", "Streaming"]
+    html_out = '<div class="steps">'
+    for i, label in enumerate(steps, 1):
         cls = "done" if i < current else ("active" if i == current else "")
-        html += f'<div class="step-item {cls}"><div class="step-num">{num}</div><div class="step-label">{label}</div></div>'
-    html += "</div>"
-    st.markdown(html, unsafe_allow_html=True)
+        html_out += f'<div class="step {cls}"><div class="step-num">{i}</div><div class="step-lbl">{label}</div></div>'
+    html_out += "</div>"
+    st.markdown(html_out, unsafe_allow_html=True)
 
 
 def render_worker():
-    render_hero("HYDRA WORKER", f"MODULO TELEMETRIA · {VERSION}", "CLIENT NODE")
-
+    render_hero("HYDRA WORKER", f"Agent Module  /  {VERSION}  /  {platform.system()}", "STANDBY")
     if "step" not in st.session_state:
         st.session_state.step = 1
-
     render_stepper(st.session_state.step)
 
     if st.session_state.step == 1:
-        st.markdown("<div class='section-title'>Trova il Master Controller</div>", unsafe_allow_html=True)
-        method = st.radio(
-            "Metodo di scoperta",
-            ["Automatico (Beacon + Localhost)", "Scansione subnet", "IP manuale"],
-            horizontal=True,
-        )
-        static_ip = ""
-        if method == "IP manuale":
-            static_ip = st.text_input("Indirizzo IP del Master", placeholder="192.168.1.100")
-
-        if st.button("Avvia scoperta", use_container_width=True):
+        st.markdown("<div class='section-head'>Discovery master</div>", unsafe_allow_html=True)
+        method = st.radio("Metodo", ["Automatico (Beacon + Localhost)", "Scansione subnet", "IP manuale"], horizontal=True)
+        static_ip = st.text_input("IP Master", placeholder="192.168.1.100") if method == "IP manuale" else ""
+        if st.button("Avvia scoperta", width="stretch"):
             if method == "Automatico (Beacon + Localhost)":
                 found = False
                 try:
@@ -742,11 +759,10 @@ def render_worker():
                     st.session_state.step = 2
                     st.rerun()
                 else:
-                    st.error("Master non trovato. Avvia prima il nodo Master sulla stessa rete.")
-
+                    st.error("Master non trovato.")
             elif method == "Scansione subnet":
                 found = False
-                with st.spinner("Scansione subnet in corso (può richiedere ~30s)..."):
+                with st.spinner("Scansione..."):
                     try:
                         base_ip = ".".join(get_local_ip().split(".")[:-1])
                         for i in range(1, 255):
@@ -758,30 +774,28 @@ def render_worker():
                                     found = True
                                     break
                     except Exception as e:
-                        st.error(f"Errore scansione: {e}")
+                        st.error(str(e))
                 if found:
                     st.session_state.step = 2
                     st.rerun()
                 else:
-                    st.error("Nessun Master trovato sulla subnet locale.")
-
+                    st.error("Nessun Master trovato.")
             elif method == "IP manuale":
                 if static_ip.strip():
                     st.session_state.target_ip = static_ip.strip()
                     st.session_state.step = 2
                     st.rerun()
                 else:
-                    st.error("Inserisci un indirizzo IP valido.")
+                    st.error("Inserisci un IP valido.")
 
     elif st.session_state.step == 2:
-        st.success(f"Master individuato: **{st.session_state.target_ip}**")
-        st.markdown("<div class='section-title'>Autenticazione Cluster</div>", unsafe_allow_html=True)
-        st.caption("Inserisci la chiave condivisa configurata sul Master (default nel codice sorgente).")
-        key_in = st.text_input("Chiave di accesso", type="password", placeholder="••••••••••••••••")
-
-        col_auth, col_back = st.columns([3, 1])
-        with col_auth:
-            if st.button("Autorizza tunnel sicuro", use_container_width=True):
+        st.info(f"Master: {st.session_state.target_ip}")
+        st.markdown("<div class='section-head'>Autenticazione</div>", unsafe_allow_html=True)
+        st.caption("Avvia il Worker come amministratore per abilitare l'esecuzione remota dei comandi.")
+        key_in = st.text_input("Chiave cluster", type="password")
+        ca, cb = st.columns([3, 1])
+        with ca:
+            if st.button("Connetti", width="stretch"):
                 if key_in.encode() == SECRET_KEY:
                     worker = HydraWorker(st.session_state.target_ip)
                     if worker.engage_link():
@@ -789,48 +803,41 @@ def render_worker():
                         st.session_state.step = 3
                         st.rerun()
                     else:
-                        st.error(f"Connessione ZMQ fallita: {worker.error_msg}")
+                        st.error(f"Connessione fallita: {worker.error_msg}")
                 else:
-                    st.error("Chiave non valida. Accesso negato.")
-        with col_back:
+                    st.error("Chiave non valida.")
+        with cb:
             if st.button("Indietro"):
                 st.session_state.step = 1
                 st.rerun()
 
     elif st.session_state.step == 3:
         w: HydraWorker = st.session_state.worker
-
         if not w.connected:
-            st.error("Connessione persa con il Master.")
+            st.error("Connessione persa.")
             if st.button("Riconnetti"):
                 st.session_state.step = 1
                 del st.session_state.worker
                 st.rerun()
             return
-
-        st.markdown(f"""
-            <div class="link-banner">
-                <span class="icon">🔗</span>
-                <span class="text">LINK SICURO ATTIVO → {st.session_state.target_ip}</span>
-            </div>
-        """, unsafe_allow_html=True)
-
-        m1, m2, m3, m4 = st.columns(4)
+        st.markdown(
+            f'<div class="link-strip"><span class="status-dot"></span>SECURE LINK &rarr; {st.session_state.target_ip}</div>',
+            unsafe_allow_html=True,
+        )
         s = w.last_stats
-        m1.metric("CPU", f"{s['cpu']}%")
-        m2.metric("RAM", f"{s['ram']}%")
-        m3.metric("DISCO", f"{s['disk']}%")
-        m4.metric("ID NODO", w.id)
-
-        st.plotly_chart(build_chart(list(w.cpu_history), height=380, show_axes=True), use_container_width=True)
-        st.caption("Grafico CPU — ultimi 60 secondi")
-
-        if st.button("Termina connessione", use_container_width=True):
+        with st.container(border=True):
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("CPU", f"{s['cpu']:.1f}%")
+            m2.metric("RAM", f"{s['ram']:.1f}%")
+            m3.metric("Disco", f"{s['disk']:.1f}%")
+            m4.metric("OS", w.meta.get("os", "?"))
+            st.plotly_chart(build_chart(list(w.cpu_history), height=320, title="Local CPU — 60s"), width="stretch")
+        st.caption("Remote exec attivo — il Master puo inviare comandi shell a questo nodo.")
+        if st.button("Disconnetti", width="stretch"):
             w.disconnect()
             st.session_state.step = 1
             del st.session_state.worker
             st.rerun()
-
         inject_refresh()
 
 
@@ -838,16 +845,17 @@ def main():
     apply_styles()
     mode = sys.argv[1].lower() if len(sys.argv) > 1 else "master"
     render_sidebar(mode)
-
     if mode == "master":
         if "master" not in st.session_state:
-            st.session_state.master = HydraMaster()
-            st.session_state.master.launch()
+            master = HydraMaster()
+            master.launch()
+            st.session_state.master = master
+            atexit.register(master.shutdown)
         render_master(st.session_state.master)
     elif mode == "worker":
         render_worker()
     else:
-        st.error(f"Modalità non valida: '{mode}'. Usa 'master' o 'worker'.")
+        st.error("Modalita non valida. Usa master o worker.")
 
 
 if __name__ == "__main__":
